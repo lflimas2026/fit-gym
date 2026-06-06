@@ -8,12 +8,13 @@ export interface WorkoutLog {
   intensity: 'heavy' | 'medium' | 'light';
 }
 
-export interface WorkoutExercise {
+export interface BaseExercise {
   id: string;
-  baseExerciseId: string;
   name: string;
   muscleId: string;
-  sets: { id: string; reps: number; weight: number; completed: boolean }[];
+  equipment: string;
+  gifUrl?: string;       // Nova propriedade vinda do ExerciseDB
+  instructions?: string; // Nova propriedade vinda do ExerciseDB (Stringificada)
 }
 
 export interface BaseExercise {
