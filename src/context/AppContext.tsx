@@ -1,7 +1,6 @@
 // src/context/AppContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { calculateRecovery, calculate1RM, suggestWeightForReps } from '../utils/workoutHelpers';
-import exerciseData from '../assets/data/exercises.json';
 
 export interface WorkoutLog {
   muscleId: string;
@@ -17,6 +16,13 @@ export interface WorkoutExercise {
   sets: { id: string; reps: number; weight: number; completed: boolean }[];
 }
 
+export interface BaseExercise {
+  id: string;
+  name: string;
+  muscleId: string;
+  equipment: string;
+}
+
 interface ExerciseRecords {
   [exerciseId: string]: number;
 }
@@ -24,9 +30,11 @@ interface ExerciseRecords {
 export type LocationType = 'Academia Completa' | 'Apenas Halteres' | 'Peso Corporal';
 
 interface AppContextType {
+  exercises: BaseExercise[];
   workoutHistory: WorkoutLog[];
   currentWorkout: WorkoutExercise[];
   userPreferences: { location: LocationType; duration: number; goal: string; };
+  loading: boolean; // Garante a existência da propriedade exposta no erro do build
   generateWorkout: () => void;
   updateSetProgress: (exerciseId: string, setId: string, completed: boolean, reps?: number, weight?: number) => void;
   finishWorkout: () => void;
@@ -37,6 +45,9 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const [exercises, setExercises] = useState<BaseExercise[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutLog[]>(() => {
     const saved = localStorage.getItem('fitgym_history');
     return saved ? JSON.parse(saved) : [];
@@ -52,7 +63,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Linha 57 corrigida com a remoção da palavra solta
   const [userPreferences, setUserPreferences] = useState<{ location: LocationType; duration: number; goal: string }>(() => {
     const saved = localStorage.getItem('fitgym_preferences');
     return saved ? JSON.parse(saved) : {
@@ -61,6 +71,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       goal: 'Hipertrofia',
     };
   });
+
+  // Consome a rota nativa de API D1 da Cloudflare
+  useEffect(() => {
+    async function loadExercises() {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/exercises');
+        if (!response.ok) throw new Error('Erro ao buscar dados do banco D1');
+        const data = await response.json();
+        setExercises(data);
+      } catch (err) {
+        console.error("Falha na requisição D1:", err);
+      } finaly {
+        setLoading(false);
+      }
+    }
+    loadExercises();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('fitgym_history', JSON.stringify(workoutHistory));
@@ -83,6 +111,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const generateWorkout = () => {
+    if (exercises.length === 0) return;
+
     const muscleIds = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
     
     const sortedMuscles = muscleIds
@@ -91,7 +121,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const targetMuscles = sortedMuscles.slice(0, 3).map(m => m.id);
     
-    let filteredExercises = exerciseData.filter(ex => targetMuscles.includes(ex.muscleId));
+    let filteredExercises = exercises.filter(ex => targetMuscles.includes(ex.muscleId));
 
     if (userPreferences.location === 'Apenas Halteres') {
       filteredExercises = filteredExercises.filter(ex => ex.equipment === 'dumbbell' || ex.equipment === 'bodyweight');
@@ -142,7 +172,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const replaceExercise = (currentExerciseId: string, newExerciseBaseId: string) => {
-    const findBaseExercise = exerciseData.find(ex => ex.id === newExerciseBaseId);
+    const findBaseExercise = exercises.find(ex => ex.id === newExerciseBaseId);
     if (!findBaseExercise) return;
 
     const current1RM = exerciseRecords[findBaseExercise.id] || 0;
@@ -206,9 +236,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
+      exercises,
       workoutHistory,
       currentWorkout,
       userPreferences,
+      loading,
       generateWorkout,
       updateSetProgress,
       finishWorkout,
