@@ -2,12 +2,11 @@
 import React, { useEffect } from 'react';
 import { useApp } from './context/AppContext';
 import MuscleModel from './components/MuscleModel';
-import { Dumbbell, Clock, Target, MapPin } from 'lucide-react';
+import { Dumbbell, Clock, Target, MapPin, CheckCircle2, Circle } from 'lucide-react';
 
 export default function App() {
-  const { currentWorkout, userPreferences, generateWorkout } = useApp();
+  const { currentWorkout, userPreferences, generateWorkout, updateSetProgress } = useApp();
 
-  // Força o algoritmo a criar a primeira rotina baseada em fadiga ao abrir o app
   useEffect(() => {
     if (currentWorkout.length === 0) {
       generateWorkout();
@@ -15,13 +14,13 @@ export default function App() {
   }, []);
 
   const handleSelectMuscle = (id: string) => {
-    console.log("Músculo selecionado no painel:", id);
+    console.log("Músculo inspecionado:", id);
   };
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 flex justify-center items-start antialiased px-4">
-      {/* Container Responsivo com Aspecto de App Mobile */}
-      <div className="w-full max-w-md min-h-screen bg-black flex flex-col gap-5 pt-6 pb-10">
+    <div className="min-h-screen bg-black text-zinc-100 flex justify-center items-start antialiased selection:bg-emerald-500/30">
+      {/* Container Mobile-First Estrito: Travado em max-w-md para simular app nativo */}
+      <div className="w-full max-w-md min-h-screen bg-black flex flex-col gap-6 pt-6 pb-24 px-4">
         
         {/* CABEÇALHO */}
         <header className="flex justify-between items-center px-1">
@@ -34,7 +33,7 @@ export default function App() {
           </div>
         </header>
 
-        {/* PÍLULAS DE PREFERÊNCIA DO PRE-TREINO */}
+        {/* PÍLULAS DE PREFERÊNCIA */}
         <section className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
           <span className="bg-[#0A0A0C] border border-[#1A1A1E] text-zinc-300 text-[11px] px-3 py-2 rounded-full whitespace-nowrap flex items-center gap-1.5">
             <MapPin size={12} className="text-emerald-500" />
@@ -50,7 +49,7 @@ export default function App() {
           </span>
         </section>
 
-        {/* CARD DO TREINO DO DIA */}
+        {/* CARD CENTRAL */}
         <section className="w-full bg-[#0A0A0C] rounded-2xl p-4 border border-[#1A1A1E] flex flex-col gap-3 shadow-xl">
           <div>
             <span className="text-[10px] font-bold tracking-widest text-emerald-500 uppercase">Rotina Recomendada</span>
@@ -65,34 +64,93 @@ export default function App() {
 
           <button 
             onClick={generateWorkout}
-            className="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-black font-bold text-xs tracking-wide uppercase py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+            className="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-black font-bold text-xs tracking-wide uppercase py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.15)]"
           >
-            Iniciar Novo Treino
+            Trocar / Iniciar Novo Treino
           </button>
         </section>
 
-        {/* RECHARTS MODEL */}
+        {/* GRÁFICO RECHARTS */}
         <section className="w-full">
           <MuscleModel onSelectMuscle={handleSelectMuscle} />
         </section>
 
-        {/* LISTA DE EXERCÍCIOS DA SESSÃO */}
-        <section className="w-full flex flex-col gap-2.5">
+        {/* LISTA DE EXERCÍCIOS INTERATIVA (ESTILO COMPONENTIZADO) */}
+        <section className="w-full flex flex-col gap-3">
           <div className="flex justify-between items-center px-1">
             <span className="text-[11px] font-bold tracking-widest text-zinc-500 uppercase">Estrutura da Sessão</span>
             <span className="text-[10px] text-zinc-500">{currentWorkout.length} movimentos</span>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {currentWorkout.map((ex, idx) => (
-              <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-xl p-3.5 flex justify-between items-center">
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-200">{idx + 1}. {ex.name}</h4>
-                  <p className="text-[11px] text-zinc-500 mt-0.5">{ex.sets.length} séries de trabalho</p>
+              <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-3 transition-all">
+                
+                {/* Linha do Cabeçalho do Exercício */}
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="text-sm font-bold text-zinc-100">{idx + 1}. {ex.name}</h4>
+                    <p className="text-xs text-zinc-500 mt-0.5">{ex.sets.length} séries planejadas</p>
+                  </div>
+                  <span className="text-[9px] text-zinc-400 font-extrabold bg-[#141416] border border-[#27272A] px-2 py-1 rounded-md uppercase tracking-wider">
+                    {ex.muscleId}
+                  </span>
                 </div>
-                <span className="text-[10px] text-zinc-400 font-bold bg-[#141416] border border-[#27272A] px-2 py-1 rounded-md">
-                  {ex.muscleId.toUpperCase()}
-                </span>
+
+                {/* Sub-painel: Linhas de Séries Interativas */}
+                <div className="flex flex-col gap-2 mt-1 border-t border-zinc-900 pt-3">
+                  {ex.sets.map((set, setIdx) => (
+                    <div 
+                      key={set.id} 
+                      className={`flex justify-between items-center p-2 rounded-xl border transition-all ${
+                        set.completed 
+                          ? 'bg-emerald-950/20 border-emerald-500/30' 
+                          : 'bg-[#121215] border-[#1F1F24]'
+                      }`}
+                    >
+                      {/* Número da Série */}
+                      <span className="text-xs font-bold text-zinc-400 w-8 pl-1">
+                        Série {setIdx + 1}
+                      </span>
+
+                      {/* Inputs de Carga e Repetição (Ergonomia Mobile) */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <input 
+                            type="number" 
+                            inputMode="numeric"
+                            value={set.weight}
+                            onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))}
+                            className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none focus:border-emerald-500 transition-all"
+                          />
+                          <span className="text-[10px] text-zinc-500 font-medium">kg</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <input 
+                            type="number" 
+                            inputMode="numeric"
+                            value={set.reps}
+                            onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, Number(e.target.value), set.weight)}
+                            className="w-10 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none focus:border-emerald-500 transition-all"
+                          />
+                          <span className="text-[10px] text-zinc-500 font-medium">reps</span>
+                        </div>
+                      </div>
+
+                      {/* Botão Checkbox de Conclusão */}
+                      <button
+                        onClick={() => updateSetProgress(ex.id, set.id, !set.completed, set.reps, set.weight)}
+                        className={`p-1.5 rounded-lg transition-all ${
+                          set.completed ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'
+                        }`}
+                      >
+                        {set.completed ? <CheckCircle2 size={19} /> : <Circle size={19} />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
               </div>
             ))}
           </div>
