@@ -1,4 +1,4 @@
-cat << 'EOF' > src/context/AppContext.tsx
+// src/context/AppContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { calculateRecovery } from '../utils/workoutHelpers';
 import exerciseData from '../assets/data/exercises.json';
@@ -23,7 +23,7 @@ interface AppContextType {
   generateWorkout: () => void;
   updateSetProgress: (exerciseId: string, setId: string, completed: boolean, reps?: number, weight?: number) => void;
   finishWorkout: () => void;
-  replaceExercise: (currentExerciseId: string, newExerciseBaseId: string) => void; // Nova assinatura
+  replaceExercise: (currentExerciseId: string, newExerciseBaseId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -63,7 +63,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const targetMuscles = sortedMuscles.slice(0, 3).map(m => m.id);
     const filteredExercises = exerciseData.filter(ex => targetMuscles.includes(ex.muscleId));
     
-    // Embaralha levemente para dar o efeito Fitbod de nunca repetir o mesmo treino
     const shuffled = [...filteredExercises].sort(() => 0.5 - Math.random());
     const selectedExercises = shuffled.slice(0, 5);
 
@@ -99,10 +98,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  /**
-   * SUBSTITUIÇÃO INTELIGENTE:
-   * Localiza o exercício atual e troca pelo novo selecionado da mesma categoria muscular
-   */
   const replaceExercise = (currentExerciseId: string, newExerciseBaseId: string) => {
     const findBaseExercise = exerciseData.find(ex => ex.id === newExerciseBaseId);
     if (!findBaseExercise) return;
@@ -168,4 +163,3 @@ export function useApp() {
   if (!context) throw new Error('useApp deve ser utilizado dentro de um AppProvider');
   return context;
 }
-EOF
