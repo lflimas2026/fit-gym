@@ -8,20 +8,23 @@ export interface WorkoutLog {
   intensity: 'heavy' | 'medium' | 'light';
 }
 
-export interface BaseExercise {
+// RESTAURADO: Interface fundamental para rastrear as sessões ativas
+export interface WorkoutExercise {
   id: string;
+  baseExerciseId: string;
   name: string;
   muscleId: string;
-  equipment: string;
-  gifUrl?: string;       // Nova propriedade vinda do ExerciseDB
-  instructions?: string; // Nova propriedade vinda do ExerciseDB (Stringificada)
+  sets: { id: string; reps: number; weight: number; completed: boolean }[];
 }
 
+// ESTRUTURADO: Suporte nativo para os metadados do ExerciseDB
 export interface BaseExercise {
   id: string;
   name: string;
   muscleId: string;
   equipment: string;
+  gifUrl?: string;       
+  instructions?: string; 
 }
 
 interface ExerciseRecords {
@@ -73,7 +76,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   });
 
-  // Consome a rota nativa de API D1 da Cloudflare
   useEffect(() => {
     async function loadExercises() {
       try {
@@ -235,7 +237,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // Envia os logs transacionais em lote para persistência relacional estável no D1
       const response = await fetch('/api/workouts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
