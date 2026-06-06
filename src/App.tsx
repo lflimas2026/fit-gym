@@ -4,12 +4,21 @@ import { useApp, LocationType } from './context/AppContext';
 import MuscleModel from './components/MuscleModel';
 import HistoryDrawer from './components/HistoryDrawer';
 import RestTimer from './components/RestTimer';
-import ExerciseDetailsModal from './components/ExerciseDetailsModal'; // Novo Import!
-import exerciseData from './assets/data/exercises.json';
+import ExerciseDetailsModal from './components/ExerciseDetailsModal';
 import { Dumbbell, Clock, Target, MapPin, CheckCircle2, Circle, CheckSquare, RefreshCw, X, ShieldAlert, History, Info } from 'lucide-react';
 
 export default function App() {
-  const { currentWorkout, userPreferences, generateWorkout, updateSetProgress, finishWorkout, replaceExercise, changeLocationSetting } = useApp();
+  const { 
+    currentWorkout, 
+    userPreferences, 
+    exercises, 
+    loading, 
+    generateWorkout, 
+    updateSetProgress, 
+    finishWorkout, 
+    replaceExercise, 
+    changeLocationSetting 
+  } = useApp();
   
   // Estados de Controle de Gavetas Mobile
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,11 +34,22 @@ export default function App() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedExerciseDetails, setSelectedExerciseDetails] = useState<{ name: string; equipment: string; muscleId: string } | null>(null);
 
+  // Dispara a primeira geração de treino assim que a API do banco D1 responder com sucesso
   useEffect(() => {
-    if (currentWorkout.length === 0) {
+    if (!loading && currentWorkout.length === 0 && exercises.length > 0) {
       generateWorkout();
     }
-  }, []);
+  }, [loading, exercises]);
+
+  // Se o banco D1 estiver respondendo, exibe um feedback elegante na tela estilo app premium
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-zinc-400 flex flex-col justify-center items-center gap-3">
+        <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs font-bold tracking-widest uppercase text-zinc-500">Conectando ao Cloudflare D1...</p>
+      </div>
+    );
+  }
 
   const openReplacementModal = (exerciseId: string, muscleId: string) => {
     setActiveExerciseId(exerciseId);
@@ -37,9 +57,9 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  // Dispara a busca do equipamento correto na base local ao clicar no nome do exercício
+  // Busca o equipamento técnico correto diretamente no estado vindo do D1
   const openDetailsModal = (baseId: string, name: string, muscleId: string) => {
-    const matchedEx = exerciseData.find(ex => ex.id === baseId);
+    const matchedEx = exercises.find(ex => ex.id === baseId);
     setSelectedExerciseDetails({
       name: name,
       muscleId: muscleId,
@@ -76,7 +96,8 @@ export default function App() {
     }
   };
 
-  const replacementOptions = exerciseData.filter(ex => {
+  // Filtra as opções de substituição respeitando o músculo ativo e o ambiente carregado pelo banco
+  const replacementOptions = exercises.filter(ex => {
     if (ex.muscleId !== activeMuscleId) return false;
     if (userPreferences.location === 'Apenas Halteres') return ex.equipment === 'dumbbell' || ex.equipment === 'bodyweight';
     if (userPreferences.location === 'Peso Corporal') return ex.equipment === 'bodyweight';
@@ -87,7 +108,7 @@ export default function App() {
     <div className="min-h-screen bg-black text-zinc-100 flex justify-center items-start antialiased selection:bg-emerald-500/30">
       <div className="w-full max-w-md min-h-screen bg-black flex flex-col gap-6 pt-6 pb-32 px-4 relative">
         
-        {/* CABEÇALHO */}
+        {/* CABEÇALHO COM NOTIFICAÇÃO E HISTÓRICO */}
         <header className="flex justify-between items-center px-1">
           <div>
             <h1 className="text-2xl font-black text-white tracking-tight">Fit-Gym</h1>
@@ -143,7 +164,7 @@ export default function App() {
 
           <button 
             onClick={generateWorkout}
-            className="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-black font-bold text-xs tracking-wide uppercase py-3.5 rounded-xl transition-all"
+            className="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-black font-bold text-xs tracking-wide uppercase py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.15)]"
           >
             Regenerar com Filtros Atuais
           </button>
@@ -173,7 +194,7 @@ export default function App() {
                 <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-3">
                   
                   <div className="flex justify-between items-start">
-                    {/* Linha do Nome Clicável para abrir o Guia Técnico */}
+                    {/* Linha do Nome Clicável para abrir as Instruções */}
                     <div 
                       className="flex-1 pr-2 cursor-pointer group select-none"
                       onClick={() => openDetailsModal(ex.baseExerciseId, ex.name, ex.muscleId)}
@@ -260,7 +281,7 @@ export default function App() {
                 {replacementOptions.length === 0 ? (
                   <div className="py-8 text-center text-zinc-500 text-xs flex flex-col items-center gap-1.5">
                     <ShieldAlert size={18} className="text-amber-500" />
-                    Nenhuma alternativa disponível.
+                    Nenhuma alternativa disponível para este perfil.
                   </div>
                 ) : (
                   replacementOptions.map((option) => (
@@ -287,7 +308,7 @@ export default function App() {
         {/* GAVETA DE HISTÓRICO */}
         <HistoryDrawer isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
 
-        {/* GAVETA INFERIOR DE DETALHES TÉCNICOS (NOVO!) */}
+        {/* GAVETA INFERIOR DE DETALHES TÉCNICOS */}
         {isDetailsOpen && selectedExerciseDetails && (
           <ExerciseDetailsModal 
             isOpen={isDetailsOpen}
@@ -298,7 +319,7 @@ export default function App() {
           />
         )}
 
-        {/* TIMER DE DESCANSO */}
+        {/* TIMER DE DESCANSO INTELIGENTE */}
         {showTimer && <RestTimer initialSeconds={timerDuration} onClose={() => setShowTimer(false)} />}
 
         {/* BOTÃO FLUTUANTE DE CONCLUSÃO */}
