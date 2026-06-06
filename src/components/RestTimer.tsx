@@ -1,5 +1,6 @@
+// src/components/RestTimer.tsx
 import React, { useEffect, useState } from 'react';
-import { X, Play, Pause, Square, Plus } from 'lucide-react';
+import { X, Play, Pause, Plus } from 'lucide-react';
 
 interface RestTimerProps {
   initialSeconds: number;
@@ -11,20 +12,19 @@ export default function RestTimer({ initialSeconds, onClose }: RestTimerProps) {
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
-    // Reinicia o timer para o tempo inicial se o componente ganhar um novo tempo de fora
     setSecondsLeft(initialSeconds);
     setIsActive(true);
   }, [initialSeconds]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    // CORREÇÃO: Usando a tipagem global do navegador ou inferência para evitar erro de NodeJS
+    let interval: any = null;
 
     if (isActive && secondsLeft > 0) {
       interval = setInterval(() => {
         setSecondsLeft((prev) => prev - 1);
       }, 1000);
     } else if (secondsLeft === 0) {
-      // Quando chega a zero, dá um feedback visual e pode fechar ou tocar um alerta
       setIsActive(false);
     }
 
@@ -33,25 +33,21 @@ export default function RestTimer({ initialSeconds, onClose }: RestTimerProps) {
     };
   }, [isActive, secondsLeft]);
 
-  // Formata os segundos para MM:SS
   const formatTime = (totalSeconds: number) => {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
-  // Botões de ajuste rápido de tempo estilo Fitbod
   const addTime = (amount: number) => {
     setSecondsLeft((prev) => prev + amount);
   };
 
-  // Calcula a percentagem da barra de progresso
   const progressPercentage = (secondsLeft / initialSeconds) * 100;
 
   return (
     <div className="fixed bottom-24 left-4 right-4 z-50 max-w-md mx-auto bg-[#0A0A0C]/95 backdrop-blur-md border border-emerald-500/30 rounded-2xl p-4 shadow-[0_10px_30px_rgba(16,185,129,0.1)] flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
       
-      {/* Linha Principal com o Tempo */}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2.5">
           <div className={`w-2 h-2 rounded-full ${secondsLeft === 0 ? 'bg-red-500 animate-ping' : 'bg-emerald-400 animate-pulse'}`} />
@@ -63,12 +59,10 @@ export default function RestTimer({ initialSeconds, onClose }: RestTimerProps) {
           </div>
         </div>
 
-        {/* Controlos de Execução */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => addTime(15)}
             className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-xs font-bold flex items-center gap-0.5 active:scale-95 transition-all"
-            title="+15 Segundos"
           >
             <Plus size={12} />
             15s
@@ -94,7 +88,6 @@ export default function RestTimer({ initialSeconds, onClose }: RestTimerProps) {
         </div>
       </div>
 
-      {/* Barra de Progresso Fluida */}
       <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden">
         <div 
           className={`h-full transition-all duration-1000 ease-linear rounded-full ${
