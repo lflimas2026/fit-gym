@@ -1,15 +1,13 @@
-// src/context/AppContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { calculateRecovery } from '../utils/workoutHelpers';
+import exerciseData from '../assets/data/exercises.json';
 
-// Movemos a declaração para cá para evitar conflito de cache no import de tipos do Vite!
 export interface WorkoutLog {
   muscleId: string;
-  date: string;
+  date: string; 
   intensity: 'heavy' | 'medium' | 'light';
 }
 
-// Definição da estrutura de um exercício gerado
 export interface WorkoutExercise {
   id: string;
   name: string;
@@ -21,31 +19,14 @@ interface AppContextType {
   workoutHistory: WorkoutLog[];
   currentWorkout: WorkoutExercise[];
   userPreferences: { location: string; duration: number; goal: string; };
-  addWorkoutLog: (log: WorkoutLog) => void;
   generateWorkout: () => void;
   updateSetProgress: (exerciseId: string, setId: string, completed: boolean, reps?: number, weight?: number) => void;
+  finishWorkout: () => void; // Garante a assinatura exata exigida pelo App.tsx
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Banco de dados de exercícios baseado nas suas principais buscas e treinos focados
-const EXERCISE_DATABASE = [
-  { id: 'ex1', name: 'Supino Reto com Barra', muscleId: 'chest' },
-  { id: 'ex2', name: 'Crucifixo Inclinado Halteres', muscleId: 'chest' },
-  { id: 'ex3', name: 'Puxada Alta Neutra', muscleId: 'back' },
-  { id: 'ex4', name: 'Remada Baixa Máquina', muscleId: 'back' },
-  { id: 'ex5', name: 'Desenvolvimento Máquina', muscleId: 'shoulders' },
-  { id: 'ex6', name: 'Rosca Inclinada Halteres', muscleId: 'biceps' },
-  { id: 'ex7', name: 'Tríceps Corda Pulley', muscleId: 'biceps' },
-  { id: 'ex8', name: 'Abdominal Infra Solo', muscleId: 'abs' },
-  { id: 'ex9', name: 'Agachamento Livre', muscleId: 'quads' },
-  { id: 'ex10', name: 'Leg Press 45°', muscleId: 'quads' },
-  { id: 'ex11', name: 'Mesa Flexora', muscleId: 'hams' },
-  { id: 'ex12', name: 'Elevação de Gêmeos Sentado', muscleId: 'calves' },
-];
-
 export function AppProvider({ children }: { children: ReactNode }) {
-  // Inicializa o histórico buscando o que estiver salvo no navegador
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutLog[]>(() => {
     const saved = localStorage.getItem('fitgym_history');
     return saved ? JSON.parse(saved) : [];
@@ -62,7 +43,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     goal: 'Hipertrofia',
   });
 
-  // Salva no LocalStorage automaticamente a cada alteração
   useEffect(() => {
     localStorage.setItem('fitgym_history', JSON.stringify(workoutHistory));
   }, [workoutHistory]);
@@ -71,15 +51,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('fitgym_current', JSON.stringify(currentWorkout));
   }, [currentWorkout]);
 
-  const addWorkoutLog = (log: WorkoutLog) => {
-    setWorkoutHistory(prev => [log, ...prev]);
-  };
-
-  /**
-   * ALGORITMO ESTILO FITBOD:
-   * Varre todos os grupos musculares, calcula o descanso de cada um, ordena
-   * os mais recuperados para o topo e seleciona os 3 melhores para criar o treino.
-   */
   const generateWorkout = () => {
     const muscleIds = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
     
@@ -87,11 +58,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .map(id => ({ id, score: calculateRecovery(id, workoutHistory) }))
       .sort((a, b) => b.score - a.score);
 
-    // Pega os 3 grupos musculares com maior score de recuperação
     const targetMuscles = sortedMuscles.slice(0, 3).map(m => m.id);
-    const selectedExercises = EXERCISE_DATABASE.filter(ex => targetMuscles.includes(ex.muscleId));
+    const filteredExercises = exerciseData.filter(ex => targetMuscles.includes(ex.muscleId));
+    const selectedExercises = filteredExercises.slice(0, 5);
 
-    // Monta o treino injetando 3 séries padrão de trabalho para cada movimento
     const builtWorkout: WorkoutExercise[] = selectedExercises.map(ex => ({
       id: ex.id + '_' + Date.now(),
       name: ex.name,
@@ -106,7 +76,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentWorkout(builtWorkout);
   };
 
-  // Gerencia o preenchimento de checkbox, peso e repetições de cada série individualmente
   const updateSetProgress = (exerciseId: string, setId: string, completed: boolean, reps?: number, weight?: number) => {
     setCurrentWorkout(prev => prev.map(ex => {
       if (ex.id !== exerciseId) return ex;
@@ -125,14 +94,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const finishWorkout = () => {
+    const musclesTrained = new Set<string>();
+
+    currentWorkout.forEach(ex => {
+      const hasCompletedSet = ex.sets.some(s => s.completed);
+      if (hasCompletedSet) {
+        musclesTrained.add(ex.muscleId);
+      }
+    });
+
+    if (musclesTrained.size === 0) {
+      alert("Marque pelo menos uma série como concluída antes de finalizar!");
+      return;
+    }
+
+    const newLogs: WorkoutLog[] = Array.from(musclesTrained).map(muscleId => ({
+      muscleId,
+      date: new Date().toISOString(),
+      intensity: 'heavy'
+    }));
+
+    setWorkoutHistory(prev => [...newLogs, ...prev]);
+    setCurrentWorkout([]);
+    alert("Treino concluído com sucesso! Histórico de fadiga atualizado.");
+  };
+
   return (
     <AppContext.Provider value={{
       workoutHistory,
       currentWorkout,
       userPreferences,
-      addWorkoutLog,
       generateWorkout,
-      updateSetProgress
+      updateSetProgress,
+      finishWorkout
     }}>
       {children}
     </AppContext.Provider>
