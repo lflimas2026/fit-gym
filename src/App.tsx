@@ -2,18 +2,23 @@
 import React, { useEffect, useState } from 'react';
 import { useApp, LocationType } from './context/AppContext';
 import MuscleModel from './components/MuscleModel';
-import HistoryDrawer from './components/HistoryDrawer'; // Importando o novo componente isolado!
+import HistoryDrawer from './components/HistoryDrawer';
+import RestTimer from './components/RestTimer'; // Importando o timer inteligente!
 import exerciseData from './assets/data/exercises.json';
 import { Dumbbell, Clock, Target, MapPin, CheckCircle2, Circle, CheckSquare, RefreshCw, X, ShieldAlert, History } from 'lucide-react';
 
 export default function App() {
   const { currentWorkout, userPreferences, generateWorkout, updateSetProgress, finishWorkout, replaceExercise, changeLocationSetting } = useApp();
   
-  // Estados para controlar as gavetas de substituição e histórico mobile
+  // Estados para controlar as gavetas de substituição, histórico e timer
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
   const [activeMuscleId, setActiveMuscleId] = useState<string | null>(null);
+  
+  // Estados do Cronômetro Inteligente
+  const [showTimer, setShowTimer] = useState(false);
+  const [timerDuration, setTimerDuration] = useState(60); // 60s padrão de descanso
 
   useEffect(() => {
     if (currentWorkout.length === 0) {
@@ -43,6 +48,22 @@ export default function App() {
     }, 50);
   };
 
+  // Interceptador ergonômico para disparar o timer se a série for concluída!
+  const handleSetToggle = (exerciseId: string, setId: string, currentCompleted: boolean, reps: number, weight: number) => {
+    const nextCompletedState = !currentCompleted;
+    updateSetProgress(exerciseId, setId, nextCompletedState, reps, weight);
+    
+    // Se o usuário marcou como feito (true), dispara o cronômetro estilo Fitbod
+    if (nextCompletedState) {
+      // Pequeno reset para forçar o componente a reiniciar o relógio caso já estivesse aberto
+      setShowTimer(false);
+      setTimeout(() => {
+        setTimerDuration(60); // Garante os 60s
+        setShowTimer(true);
+      }, 50);
+    }
+  };
+
   const replacementOptions = exerciseData.filter(ex => {
     if (ex.muscleId !== activeMuscleId) return false;
     if (userPreferences.location === 'Apenas Halteres') return ex.equipment === 'dumbbell' || ex.equipment === 'bodyweight';
@@ -54,7 +75,7 @@ export default function App() {
     <div className="min-h-screen bg-black text-zinc-100 flex justify-center items-start antialiased selection:bg-emerald-500/30">
       <div className="w-full max-w-md min-h-screen bg-black flex flex-col gap-6 pt-6 pb-32 px-4 relative">
         
-        {/* CABEÇALHO COM BOTÃO DE HISTÓRICO */}
+        {/* CABEÇALHO */}
         <header className="flex justify-between items-center px-1">
           <div>
             <h1 className="text-2xl font-black text-white tracking-tight">Fit-Gym</h1>
@@ -62,7 +83,6 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-2">
-            {/* Botão de Histórico Estilo Fitbod App */}
             <button
               onClick={() => setIsHistoryOpen(true)}
               className="w-9 h-9 rounded-full bg-[#0A0A0C] border border-zinc-800 hover:border-zinc-700 active:scale-95 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-all shadow-md"
@@ -189,8 +209,9 @@ export default function App() {
                           </div>
                         </div>
 
+                        {/* Gatilho interativo conectado ao interceptador do timer */}
                         <button
-                          onClick={() => updateSetProgress(ex.id, set.id, !set.completed, set.reps, set.weight)}
+                          onClick={() => handleSetToggle(ex.id, set.id, set.completed, set.reps, set.weight)}
                           className={`p-1.5 rounded-lg transition-all ${set.completed ? 'text-emerald-400' : 'text-zinc-600'}`}
                         >
                           {set.completed ? <CheckCircle2 size={19} /> : <Circle size={19} />}
@@ -248,11 +269,19 @@ export default function App() {
           </div>
         )}
 
-        {/* GAVETA INFERIOR DE HISTÓRICO ISOLADO */}
+        {/* GAVETA DE HISTÓRICO */}
         <HistoryDrawer 
           isOpen={isHistoryOpen} 
           onClose={() => setIsHistoryOpen(false)} 
         />
+
+        {/* TIMER DE DESCANSO INTELIGENTE FLUTUANTE */}
+        {showTimer && (
+          <RestTimer 
+            initialSeconds={timerDuration} 
+            onClose={() => setShowTimer(false)} 
+          />
+        )}
 
         {/* BOTÃO FLUTUANTE DE CONCLUSÃO */}
         {currentWorkout.length > 0 && (
