@@ -34,7 +34,7 @@ interface AppContextType {
   workoutHistory: WorkoutLog[];
   currentWorkout: WorkoutExercise[];
   userPreferences: { location: LocationType; duration: number; goal: string; };
-  loading: boolean; // Garante a existência da propriedade exposta no erro do build
+  loading: boolean;
   generateWorkout: () => void;
   updateSetProgress: (exerciseId: string, setId: string, completed: boolean, reps?: number, weight?: number) => void;
   finishWorkout: () => void;
@@ -83,7 +83,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setExercises(data);
       } catch (err) {
         console.error("Falha na requisição D1:", err);
-      } finally { // <--- CORRIGIDO: Agora com dois 'l's para passar no build
+      } finally {
         setLoading(false);
       }
     }
@@ -195,10 +195,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const finishWorkout = () => {
+  const finishWorkout = async () => {
     const musclesTrained = new Set<string>();
     const updatedRecords = { ...exerciseRecords };
     let totalCompletedSets = 0;
+    const setsToSave: any[] = [];
+
+    const workoutId = 'w_' + Date.now();
+    const workoutDate = new Date().toISOString();
 
     currentWorkout.forEach(ex => {
       ex.sets.forEach(set => {
@@ -212,6 +216,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (calculated1RM > previous1RM) {
             updatedRecords[ex.baseExerciseId] = calculated1RM;
           }
+
+          setsToSave.push({
+            id: 'set_' + Math.random().toString(36).substring(2, 11),
+            exerciseId: ex.baseExerciseId,
+            weight: set.weight,
+            reps: set.reps,
+            completed: true
+          });
         }
       });
     });
@@ -221,17 +233,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setExerciseRecords(updatedRecords);
+    try {
+      // Envia os logs transacionais em lote para persistência relacional estável no D1
+      const response = await fetch('/api/workouts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: workoutId,
+          date: workoutDate,
+          location: userPreferences.location,
+          sets: setsToSave
+        })
+      });
 
-    const newLogs: WorkoutLog[] = Array.from(musclesTrained).map(muscleId => ({
-      muscleId,
-      date: new Date().toISOString(),
-      intensity: 'heavy'
-    }));
+      if (!response.ok) throw new Error('Falha ao registrar treino na nuvem D1');
 
-    setWorkoutHistory(prev => [...newLogs, ...prev]);
-    setCurrentWorkout([]);
-    alert("Treino concluído! Suas cargas máximas foram recomputadas para a próxima progressão.");
+      setExerciseRecords(updatedRecords);
+
+      const newLogs: WorkoutLog[] = Array.from(musclesTrained).map(muscleId => ({
+        muscleId,
+        date: workoutDate,
+        intensity: 'heavy'
+      }));
+
+      setWorkoutHistory(prev => [...newLogs, ...prev]);
+      setCurrentWorkout([]);
+      alert("Treino salvo com sucesso no Cloudflare D1! Suas cargas foram sincronizadas.");
+    } catch (err: any) {
+      console.error(err);
+      alert("Erro ao salvar o treino online. Verifique sua conexão.");
+    }
   };
 
   return (
