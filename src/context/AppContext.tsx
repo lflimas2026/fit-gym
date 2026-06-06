@@ -83,7 +83,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setExercises(data);
       } catch (err) {
         console.error("Falha na requisição D1:", err);
-      } finaly {
+      } finally { // <--- CORRIGIDO: Agora com dois 'l's para passar no build
         setLoading(false);
       }
     }
