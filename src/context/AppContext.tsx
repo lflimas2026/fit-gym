@@ -1,3 +1,4 @@
+cat << 'EOF' > src/context/AppContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { calculateRecovery } from '../utils/workoutHelpers';
 import exerciseData from '../assets/data/exercises.json';
@@ -21,7 +22,8 @@ interface AppContextType {
   userPreferences: { location: string; duration: number; goal: string; };
   generateWorkout: () => void;
   updateSetProgress: (exerciseId: string, setId: string, completed: boolean, reps?: number, weight?: number) => void;
-  finishWorkout: () => void; // Garante a assinatura exata exigida pelo App.tsx
+  finishWorkout: () => void;
+  replaceExercise: (currentExerciseId: string, newExerciseBaseId: string) => void; // Nova assinatura
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -60,7 +62,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const targetMuscles = sortedMuscles.slice(0, 3).map(m => m.id);
     const filteredExercises = exerciseData.filter(ex => targetMuscles.includes(ex.muscleId));
-    const selectedExercises = filteredExercises.slice(0, 5);
+    
+    // Embaralha levemente para dar o efeito Fitbod de nunca repetir o mesmo treino
+    const shuffled = [...filteredExercises].sort(() => 0.5 - Math.random());
+    const selectedExercises = shuffled.slice(0, 5);
 
     const builtWorkout: WorkoutExercise[] = selectedExercises.map(ex => ({
       id: ex.id + '_' + Date.now(),
@@ -90,6 +95,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
             weight: weight !== undefined ? weight : s.weight
           };
         })
+      };
+    }));
+  };
+
+  /**
+   * SUBSTITUIÇÃO INTELIGENTE:
+   * Localiza o exercício atual e troca pelo novo selecionado da mesma categoria muscular
+   */
+  const replaceExercise = (currentExerciseId: string, newExerciseBaseId: string) => {
+    const findBaseExercise = exerciseData.find(ex => ex.id === newExerciseBaseId);
+    if (!findBaseExercise) return;
+
+    setCurrentWorkout(prev => prev.map(ex => {
+      if (ex.id !== currentExerciseId) return ex;
+      return {
+        id: findBaseExercise.id + '_' + Date.now(),
+        name: findBaseExercise.name,
+        muscleId: findBaseExercise.muscleId,
+        sets: [
+          { id: 's1', reps: 10, weight: 20, completed: false },
+          { id: 's2', reps: 10, weight: 20, completed: false },
+          { id: 's3', reps: 10, weight: 20, completed: false },
+        ]
       };
     }));
   };
@@ -127,7 +155,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       userPreferences,
       generateWorkout,
       updateSetProgress,
-      finishWorkout
+      finishWorkout,
+      replaceExercise
     }}>
       {children}
     </AppContext.Provider>
@@ -139,3 +168,4 @@ export function useApp() {
   if (!context) throw new Error('useApp deve ser utilizado dentro de um AppProvider');
   return context;
 }
+EOF
