@@ -11,25 +11,28 @@ export interface WorkoutLog {
 
 export interface WorkoutExercise {
   id: string;
-  baseExerciseId: string; // Mantém o ID original do JSON para rastrear o histórico de carga
+  baseExerciseId: string;
   name: string;
   muscleId: string;
   sets: { id: string; reps: number; weight: number; completed: boolean }[];
 }
 
-// Dicionário para guardar o melhor 1RM de cada exercício. Chave: baseExerciseId, Valor: 1RM em kg
 interface ExerciseRecords {
   [exerciseId: string]: number;
 }
 
+// Tipos de perfil de academia idênticos ao Fitbod
+export type LocationType = 'Academia Completa' | 'Apenas Halteres' | 'Peso Corporal';
+
 interface AppContextType {
   workoutHistory: WorkoutLog[];
   currentWorkout: WorkoutExercise[];
-  userPreferences: { location: string; duration: number; goal: string; };
+  userPreferences: { location: LocationType; duration: number; goal: string; };
   generateWorkout: () => void;
   updateSetProgress: (exerciseId: string, setId: string, completed: boolean, reps?: number, weight?: number) => void;
   finishWorkout: () => void;
   replaceExercise: (currentExerciseId: string, newExerciseBaseId: string) => void;
+  changeLocationSetting: (newLocation: LocationType) => void; // Nova função de controle
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -45,16 +48,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Estado que armazena os recordes de força (1RM) do usuário por exercício
   const [exerciseRecords, setExerciseRecords] = useState<ExerciseRecords>(() => {
     const saved = localStorage.getItem('fitgym_records');
     return saved ? JSON.parse(saved) : {};
   });
 
-  const [userPreferences] = useState({
-    location: 'Academia Completa',
-    duration: 45,
-    goal: 'Hipertrofia',
+  // Estado dinâmico de preferências salvo no navegador
+  const [userPreferences, setUserPreferences] = useState<{ location: LocationType; duration: number; goal: string }> Warmup(() => {
+    const saved = localStorage.getItem('fitgym_preferences');
+    return saved ? JSON.parse(saved) : {
+      location: 'Academia Completa',
+      duration: 45,
+      goal: 'Hipertrofia',
+    };
   });
 
   useEffect(() => {
@@ -69,8 +75,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('fitgym_records', JSON.stringify(exerciseRecords));
   }, [exerciseRecords]);
 
+  useEffect(() => {
+    localStorage.setItem('fitgym_preferences', JSON.stringify(userPreferences));
+  }, [userPreferences]);
+
+  const changeLocationSetting = (newLocation: LocationType) => {
+    setUserPreferences(prev => ({ ...prev, location: newLocation }));
+  };
+
   /**
-   * GERADOR DE TREINO COM PROGRESSÃO AUTOMÁTICA DE CARGA
+   * ALGORITMO FITBOD AVANÇADO: FILTRO DE EQUIVALÊNCIA DE EQUIPAMENTOS
    */
   const generateWorkout = () => {
     const muscleIds = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
@@ -80,18 +94,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .sort((a, b) => b.score - a.score);
 
     const targetMuscles = sortedMuscles.slice(0, 3).map(m => m.id);
-    const filteredExercises = exerciseData.filter(ex => targetMuscles.includes(ex.muscleId));
     
+    // Regra de filtragem estrita baseada na infraestrutura selecionada
+    let filteredExercises = exerciseData.filter(ex => targetMuscles.includes(ex.muscleId));
+
+    if (userPreferences.location === 'Apenas Halteres') {
+      // Exclui máquinas, cabos e barras pesadas
+      filteredExercises = filteredExercises.filter(ex => ex.equipment === 'dumbbell' || ex.equipment === 'bodyweight');
+    } else if (userPreferences.location === 'Peso Corporal') {
+      // Filtra apenas calistenia pura
+      filteredExercises = filteredExercises.filter(ex => ex.equipment === 'bodyweight');
+    }
+
     const shuffled = [...filteredExercises].sort(() => 0.5 - Math.random());
     const selectedExercises = shuffled.slice(0, 5);
 
     const builtWorkout: WorkoutExercise[] = selectedExercises.map(ex => {
-      // Puxa o recorde de 1RM do exercício se ele existir, senão assume 0 (novo exercício)
       const current1RM = exerciseRecords[ex.id] || 0;
-      const targetReps = 10; // Alvo padrão do Fitbod para hipertrofia básica
-      
-      // Calcula o peso sugerido sob medida para as repetições
-      const recommendedWeight = suggestWeightForReps(targetReps, current1RM);
+      const targetReps = userPreferences.location === 'Peso Corporal' ? 15 : 10; // Mais reps se for calistenia
+      const recommendedWeight = userPreferences.location === 'Peso Corporal' ? 0 : suggestWeightForReps(targetReps, current1RM);
 
       return {
         id: ex.id + '_' + Date.now(),
@@ -151,9 +172,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  /**
-   * FINALIZAÇÃO DE TREINO COM RECOMPUTAÇÃO DE PERFORMANCE (1RM)
-   */
   const finishWorkout = () => {
     const musclesTrained = new Set<string>();
     const updatedRecords = { ...exerciseRecords };
@@ -165,11 +183,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           totalCompletedSets++;
           musclesTrained.add(ex.muscleId);
 
-          // Calcula a estimativa de 1RM alcançada nessa série específica
           const calculated1RM = calculate1RM(set.weight, set.reps);
           const previous1RM = updatedRecords[ex.baseExerciseId] || 0;
 
-          // Se o rendimento de hoje foi maior que o recorde antigo, atualiza o topo da pirâmide
           if (calculated1RM > previous1RM) {
             updatedRecords[ex.baseExerciseId] = calculated1RM;
           }
@@ -182,7 +198,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Salva a nova tabela de recordes históricos
     setExerciseRecords(updatedRecords);
 
     const newLogs: WorkoutLog[] = Array.from(musclesTrained).map(muscleId => ({
@@ -204,7 +219,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       generateWorkout,
       updateSetProgress,
       finishWorkout,
-      replaceExercise
+      replaceExercise,
+      changeLocationSetting
     }}>
       {children}
     </AppContext.Provider>
