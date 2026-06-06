@@ -21,7 +21,6 @@ interface ExerciseRecords {
   [exerciseId: string]: number;
 }
 
-// Tipos de perfil de academia idênticos ao Fitbod
 export type LocationType = 'Academia Completa' | 'Apenas Halteres' | 'Peso Corporal';
 
 interface AppContextType {
@@ -32,7 +31,7 @@ interface AppContextType {
   updateSetProgress: (exerciseId: string, setId: string, completed: boolean, reps?: number, weight?: number) => void;
   finishWorkout: () => void;
   replaceExercise: (currentExerciseId: string, newExerciseBaseId: string) => void;
-  changeLocationSetting: (newLocation: LocationType) => void; // Nova função de controle
+  changeLocationSetting: (newLocation: LocationType) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -53,8 +52,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Estado dinâmico de preferências salvo no navegador
-  const [userPreferences, setUserPreferences] = useState<{ location: LocationType; duration: number; goal: string }> Warmup(() => {
+  // Linha 57 corrigida com a remoção da palavra solta
+  const [userPreferences, setUserPreferences] = useState<{ location: LocationType; duration: number; goal: string }>(() => {
     const saved = localStorage.getItem('fitgym_preferences');
     return saved ? JSON.parse(saved) : {
       location: 'Academia Completa',
@@ -83,9 +82,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUserPreferences(prev => ({ ...prev, location: newLocation }));
   };
 
-  /**
-   * ALGORITMO FITBOD AVANÇADO: FILTRO DE EQUIVALÊNCIA DE EQUIPAMENTOS
-   */
   const generateWorkout = () => {
     const muscleIds = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
     
@@ -95,14 +91,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const targetMuscles = sortedMuscles.slice(0, 3).map(m => m.id);
     
-    // Regra de filtragem estrita baseada na infraestrutura selecionada
     let filteredExercises = exerciseData.filter(ex => targetMuscles.includes(ex.muscleId));
 
     if (userPreferences.location === 'Apenas Halteres') {
-      // Exclui máquinas, cabos e barras pesadas
       filteredExercises = filteredExercises.filter(ex => ex.equipment === 'dumbbell' || ex.equipment === 'bodyweight');
     } else if (userPreferences.location === 'Peso Corporal') {
-      // Filtra apenas calistenia pura
       filteredExercises = filteredExercises.filter(ex => ex.equipment === 'bodyweight');
     }
 
@@ -111,7 +104,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const builtWorkout: WorkoutExercise[] = selectedExercises.map(ex => {
       const current1RM = exerciseRecords[ex.id] || 0;
-      const targetReps = userPreferences.location === 'Peso Corporal' ? 15 : 10; // Mais reps se for calistenia
+      const targetReps = userPreferences.location === 'Peso Corporal' ? 15 : 10;
       const recommendedWeight = userPreferences.location === 'Peso Corporal' ? 0 : suggestWeightForReps(targetReps, current1RM);
 
       return {
