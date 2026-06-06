@@ -2,13 +2,16 @@
 import React, { useEffect, useState } from 'react';
 import { useApp, LocationType } from './context/AppContext';
 import MuscleModel from './components/MuscleModel';
+import HistoryDrawer from './components/HistoryDrawer'; // Importando o novo componente isolado!
 import exerciseData from './assets/data/exercises.json';
-import { Dumbbell, Clock, Target, MapPin, CheckCircle2, Circle, CheckSquare, RefreshCw, X, ShieldAlert } from 'lucide-react';
+import { Dumbbell, Clock, Target, MapPin, CheckCircle2, Circle, CheckSquare, RefreshCw, X, ShieldAlert, History } from 'lucide-react';
 
 export default function App() {
   const { currentWorkout, userPreferences, generateWorkout, updateSetProgress, finishWorkout, replaceExercise, changeLocationSetting } = useApp();
   
+  // Estados para controlar as gavetas de substituição e histórico mobile
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
   const [activeMuscleId, setActiveMuscleId] = useState<string | null>(null);
 
@@ -35,13 +38,11 @@ export default function App() {
 
   const handleLocationChange = (type: LocationType) => {
     changeLocationSetting(type);
-    // Força a regeneração automática da rotina ao mudar de local, igualzinho ao Fitbod!
     setTimeout(() => {
       generateWorkout();
     }, 50);
   };
 
-  // Filtra as opções da gaveta respeitando também o ambiente selecionado!
   const replacementOptions = exerciseData.filter(ex => {
     if (ex.muscleId !== activeMuscleId) return false;
     if (userPreferences.location === 'Apenas Halteres') return ex.equipment === 'dumbbell' || ex.equipment === 'bodyweight';
@@ -53,20 +54,31 @@ export default function App() {
     <div className="min-h-screen bg-black text-zinc-100 flex justify-center items-start antialiased selection:bg-emerald-500/30">
       <div className="w-full max-w-md min-h-screen bg-black flex flex-col gap-6 pt-6 pb-32 px-4 relative">
         
-        {/* CABEÇALHO */}
+        {/* CABEÇALHO COM BOTÃO DE HISTÓRICO */}
         <header className="flex justify-between items-center px-1">
           <div>
             <h1 className="text-2xl font-black text-white tracking-tight">Fit-Gym</h1>
             <p className="text-xs text-zinc-500 font-medium">Seu laboratório de treino</p>
           </div>
-          <div className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold text-emerald-400">
-            FL
+          
+          <div className="flex items-center gap-2">
+            {/* Botão de Histórico Estilo Fitbod App */}
+            <button
+              onClick={() => setIsHistoryOpen(true)}
+              className="w-9 h-9 rounded-full bg-[#0A0A0C] border border-zinc-800 hover:border-zinc-700 active:scale-95 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-all shadow-md"
+              title="Ver Histórico"
+            >
+              <History size={16} />
+            </button>
+            <div className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold text-emerald-400">
+              FL
+            </div>
           </div>
         </header>
 
-        {/* SELETOR MOBILE DE EQUIPAMENTOS (PILAS INTERATIVAS) */}
+        {/* SELETOR MOBILE DE EQUIPAMENTOS */}
         <section className="flex flex-col gap-2 px-0.5">
-          <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase mb-1">Local do Treino atual</span>
+          <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase mb-1">Local do Treino Atual</span>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {(['Academia Completa', 'Apenas Halteres', 'Peso Corporal'] as LocationType[]).map((loc) => {
               const isSelected = userPreferences.location === loc;
@@ -235,6 +247,12 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* GAVETA INFERIOR DE HISTÓRICO ISOLADO */}
+        <HistoryDrawer 
+          isOpen={isHistoryOpen} 
+          onClose={() => setIsHistoryOpen(false)} 
+        />
 
         {/* BOTÃO FLUTUANTE DE CONCLUSÃO */}
         {currentWorkout.length > 0 && (
