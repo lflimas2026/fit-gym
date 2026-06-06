@@ -1,5 +1,7 @@
+// src/components/ExerciseDetailsModal.tsx
 import React from 'react';
-import { X, Info, ShieldCheck, Dumbbell } from 'lucide-react';
+import { X, Dumbbell, ShieldAlert, CheckCircle } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 
 interface ExerciseDetailsModalProps {
   isOpen: boolean;
@@ -10,101 +12,98 @@ interface ExerciseDetailsModalProps {
 }
 
 export default function ExerciseDetailsModal({ isOpen, onClose, exerciseName, equipment, muscleId }: ExerciseDetailsModalProps) {
+  const { exercises } = useApp();
+
   if (!isOpen) return null;
 
-  // Gera instruções técnicas dinâmicas baseadas no tipo de equipamento do exercício
-  const getInstructions = () => {
-    switch (equipment) {
-      case 'barbell':
-        return [
-          "Mantenha a barra alinhada e faça o movimento de forma controlada.",
-          "Ative o abdômen (core) para estabilizar a coluna durante toda a execução.",
-          "Não trave completamente as articulações (cotovelos/joelhos) no topo do movimento."
-        ];
-      case 'dumbbell':
-        return [
-          "Controle a descida para garantir o máximo de estímulo muscular na fase excêntrica.",
-          "Mantenha os punhos firmes e evite balançar o corpo para pegar impulso.",
-          "Foque na simetria: certifique-se de que ambos os lados sobem juntos."
-        ];
-      case 'cable':
-        return [
-          "Mantenha a tensão constante no cabo, sem deixar as placas baterem no final.",
-          "Estabilize os ombros e a postura antes de iniciar a puxada/empunhadura.",
-          "Faça a extensão completa da musculatura de forma suave."
-        ];
-      case 'machine':
-        return [
-          "Ajuste o banco e os apoios da máquina para alinhar a sua articulação ao eixo do equipamento.",
-          "Mantenha as costas firmemente apoiadas no encosto.",
-          "Evite usar impulsos violentos; controle tanto a ida quanto a volta."
-        ];
-      default:
-        return [
-          "Concentre-se na contração muscular máxima usando o peso do próprio corpo.",
-          "Mantenha a cadência controlada para aumentar o tempo sob tensão.",
-          "Preze pela execução perfeita antes de tentar acelerar o ritmo."
-        ];
+  // Busca o exercício correspondente no estado global para capturar os dados do ExerciseDB
+  const matchedExercise = exercises.find(ex => ex.name === exerciseName);
+  
+  // Trata as instruções vindas do banco D1 (SQLite salva arrays como String JSON)
+  let structuredInstructions: string[] = [];
+  if (matchedExercise?.instructions) {
+    try {
+      structuredInstructions = JSON.parse(matchedExercise.instructions);
+    } catch (e) {
+      // Fallback caso seja texto puro
+      structuredInstructions = [matchedExercise.instructions];
     }
-  };
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex flex-col justify-end transition-all">
-      {/* Camada de clique fora para fechar */}
+    <div className="fixed inset-0 bg-black/80 z-50 flex flex-col justify-end transition-all animate-in fade-in duration-200">
+      {/* Área superior clicável para fechar */}
       <div className="flex-1" onClick={onClose}></div>
       
-      {/* Corpo do Painel Informativo */}
-      <div className="w-full max-w-md bg-[#0A0A0C] border-t border-[#1A1A1E] rounded-t-3xl p-6 flex flex-col max-h-[70vh] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+      {/* Corpo da Gaveta Estilo iOS */}
+      <div className="w-full max-w-md bg-[#0A0A0C] border-t border-[#1A1A1E] rounded-t-3xl p-5 flex flex-col max-h-[85vh] shadow-[0_-10px_40px_rgba(0,0,0,0.6)] overflow-y-auto scrollbar-hide">
         
+        {/* Barra de Arrastar Simbólica */}
+        <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mb-4 shrink-0" />
+
         {/* Cabeçalho */}
-        <div className="flex justify-between items-start pb-4 border-b border-zinc-900">
+        <div className="flex justify-between items-start pb-4 border-b border-zinc-900 mb-4">
           <div>
-            <span className="text-[9px] text-emerald-400 font-extrabold bg-emerald-950/20 border border-emerald-500/20 px-2.5 py-1 rounded-md uppercase tracking-wider">
-              Guia Técnico
-            </span>
-            <h3 className="text-base font-black text-white tracking-tight mt-2">{exerciseName}</h3>
-            <p className="text-xs text-zinc-500 mt-0.5 uppercase tracking-wide font-semibold text-[10px]">
-              Foco: {muscleId} • Equipamento: {equipment}
-            </p>
+            <h3 className="text-sm font-black text-white uppercase tracking-wide pr-4">{exerciseName}</h3>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-500/20">
+                {muscleId}
+              </span>
+              <span className="text-[10px] text-zinc-500 font-medium flex items-center gap-1">
+                <Dumbbell size={10} /> {equipment}
+              </span>
+            </div>
           </div>
-          <button 
-            onClick={onClose} 
-            className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800 active:scale-95 transition-all"
-          >
-            <X size={16} />
+          <button onClick={onClose} className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800 active:scale-95 shrink-0">
+            <X size={14} />
           </button>
         </div>
 
-        {/* Conteúdo das Instruções */}
-        <div className="flex-1 overflow-y-auto py-5 flex flex-col gap-4 scrollbar-hide">
-          <div className="flex items-start gap-3 bg-[#121215] border border-[#1F1F24] p-4 rounded-xl">
-            <Info size={16} className="text-emerald-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-xs font-bold text-zinc-200">Como executar corretamente:</p>
-              <ul className="list-disc pl-4 text-xs text-zinc-400 mt-2 flex flex-col gap-2">
-                {getInstructions().map((step, idx) => (
-                  <li key={idx}>{step}</li>
-                ))}
-              </ul>
+        {/* REPRODUTOR DE MÍDIA ANIMADA (EXERCISEDB) */}
+        <div className="w-full bg-[#121215] border border-[#1F1F24] rounded-2xl aspect-video overflow-hidden flex items-center justify-center relative group mb-5">
+          {matchedExercise?.gifUrl ? (
+            <img 
+              src={matchedExercise.gifUrl} 
+              alt={exerciseName}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-zinc-600 text-center px-4">
+              <ShieldAlert size={24} className="text-zinc-700" />
+              <p className="text-[11px] font-bold uppercase tracking-wide">Animação não carregada</p>
+              <p className="text-[9px] max-w-[220px]">Os dados ricos do ExerciseDB aparecerão assim que a ingestão massiva for disparada.</p>
             </div>
-          </div>
-
-          <div className="flex items-center gap-3 bg-emerald-950/10 border border-emerald-500/10 p-4 rounded-xl">
-            <ShieldCheck size={16} className="text-emerald-500 shrink-0" />
-            <p className="text-[11px] text-zinc-400">
-              <span className="text-zinc-200 font-bold block mb-0.5">Dica do Fit-Gym</span>
-              Mantenha a cadência de 2 segundos na subida e 2 segundos na descida para maximizar a hipertrofia.
-            </p>
-          </div>
+          )}
         </div>
 
-        {/* Botão de Fechar na base */}
-        <button
-          onClick={onClose}
-          className="w-full bg-zinc-900 hover:bg-zinc-850 text-zinc-200 font-bold text-xs py-3.5 rounded-xl border border-zinc-800 active:scale-[0.98] transition-all"
-        >
-          Voltar ao Treino
-        </button>
+        {/* GUIA PASSO A PASSO TÉCNICO */}
+        <div className="flex flex-col gap-3">
+          <h4 className="text-[11px] font-black tracking-widest text-zinc-400 uppercase">Instruções de Execução</h4>
+          
+          {structuredInstructions.length === 0 ? (
+            <p className="text-xs text-zinc-500 italic">Nenhum guia passo a passo disponível para este movimento.</p>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {structuredInstructions.map((step, stepIdx) => (
+                <div key={stepIdx} className="bg-[#121215] border border-[#1F1F24]/60 p-3 rounded-xl flex items-start gap-3">
+                  <span className="w-5 h-5 rounded-md bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    {stepIdx + 1}
+                  </span>
+                  <p className="text-xs text-zinc-400 leading-relaxed font-medium">{step}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Dica de Segurança */}
+        <div className="mt-6 p-3 rounded-xl bg-amber-950/10 border border-amber-500/10 flex gap-2.5 items-start">
+          <CheckCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-[10px] text-zinc-500 leading-normal">
+            <strong className="text-zinc-400">Dica do Fit-Gym:</strong> Concentre-se na cadência do movimento (2s na descida, 2s na subida) para maximizar o recrutamento de fibras e a hipertrofia.
+          </p>
+        </div>
 
       </div>
     </div>
