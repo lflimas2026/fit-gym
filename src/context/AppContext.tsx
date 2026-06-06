@@ -1,6 +1,6 @@
 // src/context/AppContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { calculateRecovery } from '../utils/workoutHelpers';
+import { calculateRecovery, calculate1RM, suggestWeightForReps } from '../utils/workoutHelpers';
 import exerciseData from '../assets/data/exercises.json';
 
 export interface WorkoutLog {
@@ -11,9 +11,15 @@ export interface WorkoutLog {
 
 export interface WorkoutExercise {
   id: string;
+  baseExerciseId: string; // Mantém o ID original do JSON para rastrear o histórico de carga
   name: string;
   muscleId: string;
   sets: { id: string; reps: number; weight: number; completed: boolean }[];
+}
+
+// Dicionário para guardar o melhor 1RM de cada exercício. Chave: baseExerciseId, Valor: 1RM em kg
+interface ExerciseRecords {
+  [exerciseId: string]: number;
 }
 
 interface AppContextType {
@@ -39,6 +45,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Estado que armazena os recordes de força (1RM) do usuário por exercício
+  const [exerciseRecords, setExerciseRecords] = useState<ExerciseRecords>(() => {
+    const saved = localStorage.getItem('fitgym_records');
+    return saved ? JSON.parse(saved) : {};
+  });
+
   const [userPreferences] = useState({
     location: 'Academia Completa',
     duration: 45,
@@ -53,6 +65,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('fitgym_current', JSON.stringify(currentWorkout));
   }, [currentWorkout]);
 
+  useEffect(() => {
+    localStorage.setItem('fitgym_records', JSON.stringify(exerciseRecords));
+  }, [exerciseRecords]);
+
+  /**
+   * GERADOR DE TREINO COM PROGRESSÃO AUTOMÁTICA DE CARGA
+   */
   const generateWorkout = () => {
     const muscleIds = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
     
@@ -66,16 +85,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const shuffled = [...filteredExercises].sort(() => 0.5 - Math.random());
     const selectedExercises = shuffled.slice(0, 5);
 
-    const builtWorkout: WorkoutExercise[] = selectedExercises.map(ex => ({
-      id: ex.id + '_' + Date.now(),
-      name: ex.name,
-      muscleId: ex.muscleId,
-      sets: [
-        { id: 's1', reps: 10, weight: 20, completed: false },
-        { id: 's2', reps: 10, weight: 20, completed: false },
-        { id: 's3', reps: 10, weight: 20, completed: false },
-      ]
-    }));
+    const builtWorkout: WorkoutExercise[] = selectedExercises.map(ex => {
+      // Puxa o recorde de 1RM do exercício se ele existir, senão assume 0 (novo exercício)
+      const current1RM = exerciseRecords[ex.id] || 0;
+      const targetReps = 10; // Alvo padrão do Fitbod para hipertrofia básica
+      
+      // Calcula o peso sugerido sob medida para as repetições
+      const recommendedWeight = suggestWeightForReps(targetReps, current1RM);
+
+      return {
+        id: ex.id + '_' + Date.now(),
+        baseExerciseId: ex.id,
+        name: ex.name,
+        muscleId: ex.muscleId,
+        sets: [
+          { id: 's1', reps: targetReps, weight: recommendedWeight, completed: false },
+          { id: 's2', reps: targetReps, weight: recommendedWeight, completed: false },
+          { id: 's3', reps: targetReps, weight: recommendedWeight, completed: false },
+        ]
+      };
+    });
 
     setCurrentWorkout(builtWorkout);
   };
@@ -102,35 +131,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const findBaseExercise = exerciseData.find(ex => ex.id === newExerciseBaseId);
     if (!findBaseExercise) return;
 
+    const current1RM = exerciseRecords[findBaseExercise.id] || 0;
+    const targetReps = 10;
+    const recommendedWeight = suggestWeightForReps(targetReps, current1RM);
+
     setCurrentWorkout(prev => prev.map(ex => {
       if (ex.id !== currentExerciseId) return ex;
       return {
         id: findBaseExercise.id + '_' + Date.now(),
+        baseExerciseId: findBaseExercise.id,
         name: findBaseExercise.name,
         muscleId: findBaseExercise.muscleId,
         sets: [
-          { id: 's1', reps: 10, weight: 20, completed: false },
-          { id: 's2', reps: 10, weight: 20, completed: false },
-          { id: 's3', reps: 10, weight: 20, completed: false },
+          { id: 's1', reps: targetReps, weight: recommendedWeight, completed: false },
+          { id: 's2', reps: targetReps, weight: recommendedWeight, completed: false },
+          { id: 's3', reps: targetReps, weight: recommendedWeight, completed: false },
         ]
       };
     }));
   };
 
+  /**
+   * FINALIZAÇÃO DE TREINO COM RECOMPUTAÇÃO DE PERFORMANCE (1RM)
+   */
   const finishWorkout = () => {
     const musclesTrained = new Set<string>();
+    const updatedRecords = { ...exerciseRecords };
+    let totalCompletedSets = 0;
 
     currentWorkout.forEach(ex => {
-      const hasCompletedSet = ex.sets.some(s => s.completed);
-      if (hasCompletedSet) {
-        musclesTrained.add(ex.muscleId);
-      }
+      ex.sets.forEach(set => {
+        if (set.completed) {
+          totalCompletedSets++;
+          musclesTrained.add(ex.muscleId);
+
+          // Calcula a estimativa de 1RM alcançada nessa série específica
+          const calculated1RM = calculate1RM(set.weight, set.reps);
+          const previous1RM = updatedRecords[ex.baseExerciseId] || 0;
+
+          // Se o rendimento de hoje foi maior que o recorde antigo, atualiza o topo da pirâmide
+          if (calculated1RM > previous1RM) {
+            updatedRecords[ex.baseExerciseId] = calculated1RM;
+          }
+        }
+      });
     });
 
-    if (musclesTrained.size === 0) {
+    if (totalCompletedSets === 0) {
       alert("Marque pelo menos uma série como concluída antes de finalizar!");
       return;
     }
+
+    // Salva a nova tabela de recordes históricos
+    setExerciseRecords(updatedRecords);
 
     const newLogs: WorkoutLog[] = Array.from(musclesTrained).map(muscleId => ({
       muscleId,
@@ -140,7 +193,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setWorkoutHistory(prev => [...newLogs, ...prev]);
     setCurrentWorkout([]);
-    alert("Treino concluído com sucesso! Histórico de fadiga atualizado.");
+    alert("Treino concluído! Suas cargas máximas foram recomputadas para a próxima progressão.");
   };
 
   return (
