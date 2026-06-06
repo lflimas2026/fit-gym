@@ -3,22 +3,27 @@ import React, { useEffect, useState } from 'react';
 import { useApp, LocationType } from './context/AppContext';
 import MuscleModel from './components/MuscleModel';
 import HistoryDrawer from './components/HistoryDrawer';
-import RestTimer from './components/RestTimer'; // Importando o timer inteligente!
+import RestTimer from './components/RestTimer';
+import ExerciseDetailsModal from './components/ExerciseDetailsModal'; // Novo Import!
 import exerciseData from './assets/data/exercises.json';
-import { Dumbbell, Clock, Target, MapPin, CheckCircle2, Circle, CheckSquare, RefreshCw, X, ShieldAlert, History } from 'lucide-react';
+import { Dumbbell, Clock, Target, MapPin, CheckCircle2, Circle, CheckSquare, RefreshCw, X, ShieldAlert, History, Info } from 'lucide-react';
 
 export default function App() {
   const { currentWorkout, userPreferences, generateWorkout, updateSetProgress, finishWorkout, replaceExercise, changeLocationSetting } = useApp();
   
-  // Estados para controlar as gavetas de substituição, histórico e timer
+  // Estados de Controle de Gavetas Mobile
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
   const [activeMuscleId, setActiveMuscleId] = useState<string | null>(null);
   
-  // Estados do Cronômetro Inteligente
+  // Estados do Cronômetro
   const [showTimer, setShowTimer] = useState(false);
-  const [timerDuration, setTimerDuration] = useState(60); // 60s padrão de descanso
+  const [timerDuration, setTimerDuration] = useState(60);
+
+  // Estados do Modal de Detalhes Técnicos
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedExerciseDetails, setSelectedExerciseDetails] = useState<{ name: string; equipment: string; muscleId: string } | null>(null);
 
   useEffect(() => {
     if (currentWorkout.length === 0) {
@@ -30,6 +35,17 @@ export default function App() {
     setActiveExerciseId(exerciseId);
     setActiveMuscleId(muscleId);
     setIsModalOpen(true);
+  };
+
+  // Dispara a busca do equipamento correto na base local ao clicar no nome do exercício
+  const openDetailsModal = (baseId: string, name: string, muscleId: string) => {
+    const matchedEx = exerciseData.find(ex => ex.id === baseId);
+    setSelectedExerciseDetails({
+      name: name,
+      muscleId: muscleId,
+      equipment: matchedEx ? matchedEx.equipment : 'bodyweight'
+    });
+    setIsDetailsOpen(true);
   };
 
   const handleSelectReplacement = (newBaseId: string) => {
@@ -48,17 +64,13 @@ export default function App() {
     }, 50);
   };
 
-  // Interceptador ergonômico para disparar o timer se a série for concluída!
   const handleSetToggle = (exerciseId: string, setId: string, currentCompleted: boolean, reps: number, weight: number) => {
     const nextCompletedState = !currentCompleted;
     updateSetProgress(exerciseId, setId, nextCompletedState, reps, weight);
-    
-    // Se o usuário marcou como feito (true), dispara o cronômetro estilo Fitbod
     if (nextCompletedState) {
-      // Pequeno reset para forçar o componente a reiniciar o relógio caso já estivesse aberto
       setShowTimer(false);
       setTimeout(() => {
-        setTimerDuration(60); // Garante os 60s
+        setTimerDuration(60);
         setShowTimer(true);
       }, 50);
     }
@@ -86,7 +98,6 @@ export default function App() {
             <button
               onClick={() => setIsHistoryOpen(true)}
               className="w-9 h-9 rounded-full bg-[#0A0A0C] border border-zinc-800 hover:border-zinc-700 active:scale-95 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-all shadow-md"
-              title="Ver Histórico"
             >
               <History size={16} />
             </button>
@@ -107,9 +118,7 @@ export default function App() {
                   key={loc}
                   onClick={() => handleLocationChange(loc)}
                   className={`text-[11px] px-4 py-2.5 rounded-full whitespace-nowrap flex items-center gap-1.5 font-bold transition-all border ${
-                    isSelected 
-                      ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/40' 
-                      : 'bg-[#0A0A0C] border-[#1A1A1E] text-zinc-400'
+                    isSelected ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/40' : 'bg-[#0A0A0C] border-[#1A1A1E] text-zinc-400'
                   }`}
                 >
                   <MapPin size={11} className={isSelected ? 'text-emerald-400' : 'text-zinc-600'} />
@@ -134,7 +143,7 @@ export default function App() {
 
           <button 
             onClick={generateWorkout}
-            className="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-black font-bold text-xs tracking-wide uppercase py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+            className="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-black font-bold text-xs tracking-wide uppercase py-3.5 rounded-xl transition-all"
           >
             Regenerar com Filtros Atuais
           </button>
@@ -164,14 +173,21 @@ export default function App() {
                 <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-3">
                   
                   <div className="flex justify-between items-start">
-                    <div className="flex-1 pr-2">
-                      <h4 className="text-xs font-bold text-zinc-100">{idx + 1}. {ex.name}</h4>
-                      <p className="text-xs text-zinc-500 mt-0.5 uppercase tracking-wider font-semibold text-[9px] text-emerald-500">{ex.muscleId}</p>
+                    {/* Linha do Nome Clicável para abrir o Guia Técnico */}
+                    <div 
+                      className="flex-1 pr-2 cursor-pointer group select-none"
+                      onClick={() => openDetailsModal(ex.baseExerciseId, ex.name, ex.muscleId)}
+                    >
+                      <h4 className="text-xs font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors flex items-center gap-1">
+                        {idx + 1}. {ex.name}
+                        <Info size={11} className="text-zinc-600 group-hover:text-emerald-500 shrink-0" />
+                      </h4>
+                      <p className="text-[9px] text-zinc-500 mt-0.5 uppercase tracking-wider font-semibold text-emerald-500">{ex.muscleId}</p>
                     </div>
                     
                     <button
                       onClick={() => openReplacementModal(ex.id, ex.muscleId)}
-                      className="flex items-center gap-1 bg-[#121215] border border-zinc-800 hover:border-zinc-700 active:scale-[0.95] text-zinc-400 hover:text-zinc-200 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all"
+                      className="flex items-center gap-1 bg-[#121215] border border-zinc-800 text-zinc-400 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all active:scale-95"
                     >
                       <RefreshCw size={10} />
                       Substituir
@@ -194,7 +210,7 @@ export default function App() {
                               type="number" inputMode="numeric" value={set.weight}
                               onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))}
                               disabled={userPreferences.location === 'Peso Corporal'}
-                              className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none focus:border-emerald-500 transition-all disabled:opacity-30 disabled:text-zinc-600"
+                              className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none focus:border-emerald-500 transition-all disabled:opacity-30"
                             />
                             <span className="text-[10px] text-zinc-500">kg</span>
                           </div>
@@ -209,7 +225,6 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Gatilho interativo conectado ao interceptador do timer */}
                         <button
                           onClick={() => handleSetToggle(ex.id, set.id, set.completed, set.reps, set.weight)}
                           className={`p-1.5 rounded-lg transition-all ${set.completed ? 'text-emerald-400' : 'text-zinc-600'}`}
@@ -226,7 +241,7 @@ export default function App() {
           )}
         </section>
 
-        {/* GAVETA INFERIOR DE SUBSTITUIÇÃO COERENTE */}
+        {/* GAVETA INFERIOR DE SUBSTITUIÇÃO */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black/80 z-50 flex flex-col justify-end transition-all">
             <div className="flex-1" onClick={() => setIsModalOpen(false)}></div>
@@ -245,7 +260,7 @@ export default function App() {
                 {replacementOptions.length === 0 ? (
                   <div className="py-8 text-center text-zinc-500 text-xs flex flex-col items-center gap-1.5">
                     <ShieldAlert size={18} className="text-amber-500" />
-                    Nenhuma alternativa disponível para este perfil de equipamentos.
+                    Nenhuma alternativa disponível.
                   </div>
                 ) : (
                   replacementOptions.map((option) => (
@@ -270,18 +285,21 @@ export default function App() {
         )}
 
         {/* GAVETA DE HISTÓRICO */}
-        <HistoryDrawer 
-          isOpen={isHistoryOpen} 
-          onClose={() => setIsHistoryOpen(false)} 
-        />
+        <HistoryDrawer isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
 
-        {/* TIMER DE DESCANSO INTELIGENTE FLUTUANTE */}
-        {showTimer && (
-          <RestTimer 
-            initialSeconds={timerDuration} 
-            onClose={() => setShowTimer(false)} 
+        {/* GAVETA INFERIOR DE DETALHES TÉCNICOS (NOVO!) */}
+        {isDetailsOpen && selectedExerciseDetails && (
+          <ExerciseDetailsModal 
+            isOpen={isDetailsOpen}
+            onClose={() => setIsDetailsOpen(false)}
+            exerciseName={selectedExerciseDetails.name}
+            equipment={selectedExerciseDetails.equipment}
+            muscleId={selectedExerciseDetails.muscleId}
           />
         )}
+
+        {/* TIMER DE DESCANSO */}
+        {showTimer && <RestTimer initialSeconds={timerDuration} onClose={() => setShowTimer(false)} />}
 
         {/* BOTÃO FLUTUANTE DE CONCLUSÃO */}
         {currentWorkout.length > 0 && (
