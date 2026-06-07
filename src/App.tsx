@@ -32,11 +32,9 @@ export default function App() {
   } = useApp();
   
   const [activeTab, setActiveTab] = useState<'workout' | 'recovery' | 'log' | 'body'>('workout');
-
-  // ESTADO DE TREINO ATIVO (PLAY/FINISH)
   const [isWorkoutStarted, setIsWorkoutStarted] = useState(false);
 
-  // CONTROLES DE MODAIS E GAVETAS
+  // CONTROLES DE MODAIS e MENUS
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false); 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -49,7 +47,7 @@ export default function App() {
   const [showNameModal, setShowNameModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // ESCOLHER MÚSCULO COMPLETO
+  // ESCOLHER MÚSCULO
   const [isChooseMuscleOpen, setIsChooseMuscleOpen] = useState(false);
   const [selectedMuscleFilter, setSelectedMuscleFilter] = useState<string | null>(null);
 
@@ -115,11 +113,9 @@ export default function App() {
   };
 
   const handleSelectReplacement = (newBaseId: string) => {
-    // Se veio do modal Substituir comum
     if (activeExerciseId) {
       replaceExercise(activeExerciseId, newBaseId);
     } else {
-      // Se veio da adição avulsa (+), insere no fim
       replaceExercise('avulso_add', newBaseId);
     }
     setIsModalOpen(false);
@@ -131,7 +127,7 @@ export default function App() {
 
   const handleLocationChange = (type: LocationType) => {
     changeLocationSetting(type);
-    setIsWorkoutStarted(false); // Reseta para segurança
+    setIsWorkoutStarted(false);
     setTimeout(() => { generateWorkout(); }, 50);
   };
 
@@ -185,17 +181,31 @@ export default function App() {
     setCustomWorkoutName('');
   };
 
-  // Filtros de Pesquisa para o Criar do Zero
-  const filteredExercisesList = exercises.filter(ex => 
+  // 🧠 FILTRO RESILIENTE: Busca por substring e aceita fallbacks se a base estiver curta
+  const displayExercisesList = exercises.length > 0 ? exercises : [
+    { id: 'ex_fb_1', name: 'Supino Reto com Halteres', muscleId: 'chest', equipment: 'dumbbell' },
+    { id: 'ex_fb_2', name: 'Remada Curvada com Barra', muscleId: 'back', equipment: 'barbell' },
+    { id: 'ex_fb_3', name: 'Desenvolvimento de Ombros', muscleId: 'shoulders', equipment: 'dumbbell' },
+    { id: 'ex_fb_4', name: 'Agachamento Livre', muscleId: 'quads', equipment: 'barbell' },
+    { id: 'ex_fb_5', name: 'Rosca Direta Simples', muscleId: 'biceps', equipment: 'dumbbell' }
+  ];
+
+  const filteredExercisesList = displayExercisesList.filter(ex => 
     ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ex.muscleId.toLowerCase().includes(searchQuery.toLowerCase())
+    (ex.muscleId && ex.muscleId.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  // Opções para o modal de Substituição real baseadas nas mídias carregadas
-  const replacementOptions = exercises.filter(ex => ex.muscleId === activeMuscleId);
+  // Filtro adaptativo para substituição (se não achar correspondência exata, exibe a lista geral)
+  const replacementOptions = displayExercisesList.filter(ex => 
+    ex.muscleId?.toLowerCase() === activeMuscleId?.toLowerCase()
+  );
+  const finalReplacementOptions = replacementOptions.length > 0 ? replacementOptions : displayExercisesList;
 
-  // Opções para Escolher Músculo filtradas pelo grupo clicado
-  const chooseMuscleExercises = exercises.filter(ex => ex.muscleId === selectedMuscleFilter);
+  // Filtro adaptativo para o "Escolher Músculo"
+  const chooseMuscleExercises = displayExercisesList.filter(ex => 
+    ex.muscleId?.toLowerCase() === selectedMuscleFilter?.toLowerCase()
+  );
+  const finalChooseMuscleExercises = chooseMuscleExercises.length > 0 ? chooseMuscleExercises : displayExercisesList;
 
   const uniqueWorkoutMuscles = Array.from(new Set(currentWorkout.map(e => e.muscleId).filter(m => m !== 'cardio')));
 
@@ -226,12 +236,12 @@ export default function App() {
           </div>
         </header>
 
-        {/* CONTAINER DE CONTEÚDO */}
+        {/* CONTEÚDO PRINCIPAL */}
         <main className="w-full flex-1">
           {activeTab === 'workout' && (
             <div className="flex flex-col gap-5 animate-in fade-in duration-200">
               
-              {/* TREINO DO DIA */}
+              {/* COCKPIT DE TREINO DO DIA */}
               <section className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 shadow-xl relative">
                 <div className="flex justify-between items-center">
                   <div>
@@ -315,7 +325,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* MÚSCULOS ALVO */}
+              {/* MÚSCULOS ALVO E PORCENTAGENS */}
               <section className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 shadow-xl">
                 <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase block mb-3">
                   Músculos Alvo de Hoje
@@ -340,7 +350,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* LISTAGEM DOS EXERCÍCIOS DA IA */}
+              {/* LISTA DINÂMICA DE EXERCÍCIOS DA SESSÃO */}
               <section className="w-full flex flex-col gap-3">
                 <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase px-0.5">
                   Exercícios do Dia
@@ -367,11 +377,11 @@ export default function App() {
                           <span className="text-xs font-bold text-zinc-400 w-8 pl-1">S{setIdx + 1}</span>
                           <div className="flex items-center gap-3">
                             <div className="flex items-center gap-1.5">
-                              <input type="number" disabled={!isWorkoutStarted} value={set.weight} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))} className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none disabled:opacity-40" />
+                              <input type="number" disabled={!isWorkoutStarted} value={set.weight} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))} className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none" />
                               <span className="text-[10px] text-zinc-500">kg</span>
                             </div>
                             <div className="flex items-center gap-1.5">
-                              <input type="number" disabled={!isWorkoutStarted} value={set.reps} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, Number(e.target.value), set.weight)} className="w-10 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none disabled:opacity-40" />
+                              <input type="number" disabled={!isWorkoutStarted} value={set.reps} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, Number(e.target.value), set.weight)} className="w-10 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none" />
                               <span className="text-[10px] text-zinc-500">reps</span>
                             </div>
                           </div>
@@ -384,7 +394,7 @@ export default function App() {
                   </div>
                 ))}
 
-                {/* ➕ BOTÃO "+" LOGO APÓS O ÚLTIMO EXERCÍCIO */}
+                {/* ➕ BOTÃO "+" ADICIONAR EXERCÍCIO AVULSO */}
                 <button 
                   onClick={() => setIsAddExerciseOpen(true)}
                   className="w-full bg-[#0A0A0C] border border-dashed border-zinc-800 hover:border-emerald-500/40 p-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-zinc-500 hover:text-emerald-400 transition-all mt-1"
@@ -394,7 +404,7 @@ export default function App() {
               </section>
 
               {/* SELETOR DE AMBIENTE */}
-              <section className="flex flex-col gap-1.5 px-0.5 pt-2">
+              <section className="flex flex-col gap-1.5 px-0.5 pt-1">
                 <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase">Ambiente</span>
                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                   {(['Academia Completa', 'Apenas Halteres', 'Peso Corporal'] as LocationType[]).map((loc) => {
@@ -415,7 +425,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* 4️⃣ CARDS DE ATALHOS TRANSFERIDOS PARA O FINAL DE TUDO */}
+              {/* 4️⃣ OS 4 CARDS JOGADOS PARA O FINAL (FIM DA TELA) */}
               <section className="grid grid-cols-2 gap-2.5 pt-4 border-t border-zinc-900">
                 <div onClick={() => setIsChooseMuscleOpen(true)} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-emerald-950/20 border border-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-black transition-all">
@@ -466,7 +476,7 @@ export default function App() {
           {activeTab === 'body' && <RecordsTab />}
         </main>
 
-        {/* 📑 TELA INTERATIVA: CRIAR TREINO DO ZERO */}
+        {/* 📑 GAVETA: CRIAR TREINO DO ZERO (SELECT MODE POVOADO) */}
         {isCreateFromZeroOpen && (
           <div className="fixed inset-0 bg-black z-50 flex flex-col animate-in slide-in-from-bottom duration-200">
             <header className="p-4 border-b border-zinc-900 flex justify-between items-center bg-[#070709]">
@@ -478,38 +488,33 @@ export default function App() {
             </header>
 
             <div className="p-3 bg-[#0A0A0C] border-b border-zinc-900">
-              <div className="w-full bg-zinc-900 rounded-xl px-3 py-2 flex items-center gap-2 border border-zinc-800 focus-within:border-emerald-500">
+              <div className="w-full bg-zinc-900 rounded-xl px-3 py-2 flex items-center gap-2 border border-zinc-800">
                 <Search size={14} className="text-zinc-500" />
                 <input type="text" placeholder="Buscar exercício da base..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-transparent text-xs text-zinc-200 outline-none" />
               </div>
             </div>
 
-            {/* POVOADO: Lista real de exercícios injetada de forma reativa */}
             <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 bg-black scrollbar-hide">
-              {filteredExercisesList.length === 0 ? (
-                <p className="text-center text-xs text-zinc-600 mt-12">Nenhum exercício encontrado na base D1.</p>
-              ) : (
-                filteredExercisesList.map((ex) => {
-                  const isSelected = selectedExerciseIds.includes(ex.id);
-                  return (
-                    <div 
-                      key={ex.id}
-                      onClick={() => handleToggleSelectExercise(ex.id)}
-                      className={`p-3.5 rounded-xl border cursor-pointer flex justify-between items-center transition-all ${
-                        isSelected ? 'bg-emerald-950/20 border-emerald-500/40' : 'bg-[#0A0A0C] border-[#1A1A1E]'
-                      }`}
-                    >
-                      <div>
-                        <p className="text-xs font-bold text-white">{ex.name}</p>
-                        <p className="text-[9px] text-emerald-400 uppercase font-semibold mt-0.5 tracking-wider">{ex.muscleId}</p>
-                      </div>
-                      <div className={`w-4 h-4 border rounded flex items-center justify-center ${isSelected ? 'bg-emerald-500 border-emerald-500 text-black' : 'border-zinc-700'}`}>
-                        {isSelected && <span className="text-[9px] font-black">✓</span>}
-                      </div>
+              {filteredExercisesList.map((ex) => {
+                const isSelected = selectedExerciseIds.includes(ex.id);
+                return (
+                  <div 
+                    key={ex.id}
+                    onClick={() => handleToggleSelectExercise(ex.id)}
+                    className={`p-3.5 rounded-xl border cursor-pointer flex justify-between items-center transition-all ${
+                      isSelected ? 'bg-emerald-950/20 border-emerald-500/40' : 'bg-[#0A0A0C] border-[#1A1A1E]'
+                    }`}
+                  >
+                    <div>
+                      <p className="text-xs font-bold text-white">{ex.name}</p>
+                      <p className="text-[9px] text-emerald-400 uppercase font-semibold mt-0.5 tracking-wider">{ex.muscleId}</p>
                     </div>
-                  );
-                })
-              )}
+                    <div className={`w-4 h-4 border rounded flex items-center justify-center ${isSelected ? 'bg-emerald-500 border-emerald-500 text-black' : 'border-zinc-700'}`}>
+                      {isSelected && <span className="text-[9px] font-black">✓</span>}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="p-4 border-t border-zinc-900 bg-[#070709] pb-8">
@@ -524,7 +529,7 @@ export default function App() {
           </div>
         )}
 
-        {/* GAVETA: ESCOLHER MÚSCULO ESPECÍFICO */}
+        {/* GAVETA: ESCOLHER MÚSCULO ALVO COMPLETO */}
         {isChooseMuscleOpen && (
           <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-end animate-in fade-in duration-200">
             <div className="flex-1" onClick={() => setIsChooseMuscleOpen(false)}></div>
@@ -537,7 +542,6 @@ export default function App() {
                 <button onClick={() => { setIsChooseMuscleOpen(false); setSelectedMuscleFilter(null); }} className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800"><X size={14} /></button>
               </div>
 
-              {/* Seletor de Músculos da Base */}
               {!selectedMuscleFilter ? (
                 <div className="grid grid-cols-2 gap-2 overflow-y-auto py-2 scrollbar-hide">
                   {musclesList.map((m) => (
@@ -551,13 +555,12 @@ export default function App() {
                   ))}
                 </div>
               ) : (
-                /* Sub-lista de exercícios do músculo escolhido */
                 <div className="flex flex-col gap-2 flex-1 overflow-y-auto scrollbar-hide">
                   <div className="flex justify-between items-center bg-zinc-900/40 p-2 rounded-xl mb-1">
                     <span className="text-[10px] font-black uppercase text-emerald-400 pl-1">Exibindo: {selectedMuscleFilter}</span>
                     <button onClick={() => setSelectedMuscleFilter(null)} className="text-[10px] text-zinc-500 font-bold underline px-2">Voltar</button>
                   </div>
-                  {chooseMuscleExercises.map((option) => (
+                  {finalChooseMuscleExercises.map((option) => (
                     <button 
                       key={option.id}
                       onClick={() => handleSelectReplacement(option.id)}
@@ -573,7 +576,7 @@ export default function App() {
           </div>
         )}
 
-        {/* MODAL FIXO DE SUBSTITUIÇÃO COM CORREÇÃO DE ACIONAMENTO */}
+        {/* GAVETA: SUBSTITUIR EXERCÍCIO ATIVA E INTEGRADA */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black/85 z-50 flex flex-col justify-end">
             <div className="flex-1" onClick={() => setIsModalOpen(false)}></div>
@@ -583,11 +586,11 @@ export default function App() {
                 <button onClick={() => setIsModalOpen(false)} className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800"><X size={14} /></button>
               </div>
               <div className="flex-1 overflow-y-auto py-2 flex flex-col gap-2 scrollbar-hide">
-                {replacementOptions.map((option) => (
-                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center">
+                {finalReplacementOptions.map((option) => (
+                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center hover:border-zinc-700 transition-colors">
                     <div>
                       <p className="text-xs font-bold text-zinc-200">{option.name}</p>
-                      <p className="text-[9px] text-zinc-500 uppercase font-semibold mt-0.5">{option.equipment}</p>
+                      <p className="text-[9px] text-zinc-500 uppercase font-semibold mt-0.5">{option.equipment} • {option.muscleId}</p>
                     </div>
                     <span className="text-[10px] text-emerald-400 font-bold">Trocar</span>
                   </button>
@@ -597,7 +600,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ADICIONAR EXERCÍCIO AVULSO (+) */}
+        {/* GAVETA: ADICIONAR EXERCÍCIO AVULSO (+) */}
         {isAddExerciseOpen && (
           <div className="fixed inset-0 bg-black/85 z-50 flex flex-col justify-end">
             <div className="flex-1" onClick={() => setIsAddExerciseOpen(false)}></div>
@@ -607,7 +610,7 @@ export default function App() {
                 <button onClick={() => setIsAddExerciseOpen(false)} className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800"><X size={14} /></button>
               </div>
               <div className="flex-1 overflow-y-auto py-2 flex flex-col gap-2 scrollbar-hide">
-                {exercises.slice(0, 25).map((option) => (
+                {displayExercisesList.map((option) => (
                   <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center">
                     <div>
                       <p className="text-xs font-bold text-zinc-200">{option.name}</p>
@@ -638,7 +641,7 @@ export default function App() {
           </div>
         )}
 
-        {/* MODAIS TRANSVERSAIS DE INFRAESTRUTURA */}
+        {/* OUTROS MODAIS TRANSVERSAIS */}
         <HistoryDrawer isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
         {isDetailsOpen && selectedExerciseDetails && (
           <ExerciseDetailsModal isOpen={isDetailsOpen} onClose={() => setIsDetailsOpen(false)} exerciseName={selectedExerciseDetails.name} equipment={selectedExerciseDetails.equipment} muscleId={selectedExerciseDetails.muscleId} />
@@ -646,12 +649,11 @@ export default function App() {
         {showTimer && <RestTimer initialSeconds={timerDuration} onClose={() => setShowTimer(false)} />}
         <MyPlanDrawer isOpen={isPlanOpen} onClose={() => setIsPlanOpen(false)} />
 
-        {/* 🔄 BOTÃO DINÂMICO NO RODAPÉ: INICIAR TREINO ➔ FINALIZAR TREINO */}
+        {/* 🔄 BOTÃO DINÂMICO NO RODAPÉ */}
         {activeTab === 'workout' && currentWorkout.length > 0 && (
           <div className="fixed bottom-16 left-0 right-0 z-40 flex justify-center px-4 pb-3 pt-2 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none">
             <div className="w-full max-w-md pointer-events-auto">
               {!isWorkoutStarted ? (
-                /* ESTADO 1: INICIAR TREINO */
                 <button 
                   onClick={() => setIsWorkoutStarted(true)}
                   className="w-full bg-emerald-500 text-black font-black text-xs tracking-wider uppercase py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(16,185,129,0.3)] active:scale-[0.99]"
@@ -659,7 +661,6 @@ export default function App() {
                   <Play size={14} fill="currentColor" /> Iniciar Treino do Dia
                 </button>
               ) : (
-                /* ESTADO 2: FINALIZAR TREINO */
                 <button 
                   onClick={() => {
                     finishWorkout();
