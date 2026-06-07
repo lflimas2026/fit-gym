@@ -68,10 +68,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentWorkout, setCurrentWorkout] = useState<WorkoutExercise[]>([]);
   const [rawDbWorkouts, setRawDbWorkouts] = useState<any[]>([]);
 
-  const [userPreferences, setUserPreferences] = useState<{ location: LocationType }>(() => {
-    const saved = localStorage.getItem('fitgym_preferences');
-    return saved ? JSON.parse(saved) : { location: 'Academia Completa' };
-  });
+  const [userPreferences, setUserPreferences] = useState<{ location: LocationType }>({ location: 'Academia Completa' });
 
   const [userPlan, setUserPlan] = useState<UserPlan>({
     goal: 'Ganhar Massa Muscular',
@@ -93,7 +90,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const loadD1Data = async () => {
     try {
       const resExercises = await fetch('/api/exercises');
-      if (resExercises.ok) setExercises(await resExercises.json());
+      if (resExercises.ok) {
+        const data = await resExercises.json();
+        setExercises(data);
+      }
 
       const resPlan = await fetch('/api/plan');
       if (resPlan.ok) {
@@ -114,9 +114,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const recoveredLogs: WorkoutLog[] = [];
         data.forEach((w: any) => {
           if (w.sets) {
-            const musclesInWorkout = new Set<string>(w.sets.map((s: any) => s.muscleId).filter(Boolean));
-            musclesInWorkout.forEach(m => {
-              recoveredLogs.push({ muscleId: m, date: w.date, intensity: 'heavy' });
+            w.sets.forEach((s: any) => {
+              if (s.muscleId) recoveredLogs.push({ muscleId: s.muscleId, date: w.date, intensity: 'heavy' });
             });
           }
         });
@@ -132,7 +131,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadD1Data().finally(() => setLoading(false));
 
     const savedCurrent = localStorage.getItem('fitgym_current');
-    if (savedCurrent) setCurrentWorkout(JSON.parse(savedCurrent));
+    if (savedCurrent) {
+      try {
+        setCurrentWorkout(JSON.parse(savedCurrent));
+      } catch (e) {
+        setCurrentWorkout([]);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -146,12 +151,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateUserPlan = async (newPlanFields: Partial<UserPlan>) => {
     setUserPlan(prev => {
       const updated = { ...prev, ...newPlanFields };
-      // Dispara o salvamento assíncrono em background sem travar a UI
       fetch('/api/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated)
-      }).catch(e => console.error("Falha ao sincronizar plano no D1:", e));
+      }).catch(e => console.error("Erro no D1:", e));
       return updated;
     });
   };
@@ -159,19 +163,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const generateWorkout = () => {
     if (exercises.length === 0) return;
 
-    // INTEGRAÇÃO DA FUNCIONALIDADE: MAPEAMENTO DO SPLIT SELECIONADO NO TOPO
     let targetMuscles: string[] = [];
+    const splitLower = userPlan.splitPreference.toLowerCase();
 
-    if (userPlan.splitPreference.includes('Push')) {
-      targetMuscles = ['chest', 'shoulders']; // Foco em empurrar
-    } else if (userPlan.splitPreference.includes('Pull')) {
-      targetMuscles = ['back', 'biceps']; // Foco em puxar
-    } else if (userPlan.splitPreference.includes('Legs')) {
-      targetMuscles = ['quads', 'hams', 'glutes', 'calves']; // Foco em membros inferiores
-    } else if (userPlan.splitPreference === 'Corpo inteiro') {
+    // Filtros de Músculos Corrigidos e Resilientes
+    if (splitLower.includes('push')) {
+      targetMuscles = ['chest', 'shoulders']; 
+    } else if (splitLower.includes('pull')) {
+      targetMuscles = ['back', 'biceps']; 
+    } else if (splitLower.includes('legs')) {
+      targetMuscles = ['quads', 'hams', 'glutes', 'calves']; 
+    } else if (splitLower.includes('corpo inteiro')) {
       targetMuscles = ['chest', 'back', 'quads', 'abs'];
     } else {
-      // Padrão 'Treino Recomendado' ou 'Grupos musculares descansados': Usa o motor de fadiga pura
+      // Fallback Inteligente baseada em Fadiga
       const muscleIds = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
       const sortedMuscles = muscleIds
         .map(id => ({ id, score: calculateRecovery(id, workoutHistory) }))
@@ -187,10 +192,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       filteredExercises = filteredExercises.filter(ex => ex.equipment === 'bodyweight');
     }
 
+    // Fallback absoluto caso o filtro esvazie a lista
+    if (filteredExercises.length === 0) {
+      filteredExercises = exercises.slice(0, 10);
+    }
+
     const seed = userPlan.variability === 'Mais variado' ? 0.85 : (userPlan.variability === 'Mais consistente' ? 0.25 : 0.5);
     const shuffled = [...filteredExercises].sort(() => seed - Math.random());
     
-    // INTEGRADO: CALIBRAÇÃO EXPRESSA DE NÚMERO DE MOVIMENTOS POR TEMPO DISPONÍVEL
     let numExercises = 4;
     if (userPlan.duration === 15) numExercises = 2;
     else if (userPlan.duration === 30) numExercises = 3;
@@ -201,42 +210,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const selectedExercises = shuffled.slice(0, numExercises);
 
     const builtWorkout: WorkoutExercise[] = selectedExercises.map(ex => {
-      // INTEGRADO: ADAPTAÇÃO DINÂMICA DE REPETIÇÕES BASEADA NO TIPO DE TREINO SELECIONADO
-      let targetReps = 10; // Hipertrofia padrão
-      if (userPlan.goal === 'Ficar mais forte' || userPlan.goal === 'Praticar Powerlifting') {
-        targetReps = 5; // Treino de força pura demanda cargas altas e baixas reps
-      } else if (userPlan.goal === 'Definir' || userPlan.goal === 'Melhorar condicionamento fisico') {
-        targetReps = 15; // Volume maior para queima calórica e resistência
-      } else if (userPlan.experience === 'Iniciante') {
-        targetReps = 12; // Segurança articular
-      }
+      let targetReps = 10; 
+      if (userPlan.goal.includes('forte') || userPlan.goal.includes('Powerlifting')) targetReps = 5; 
+      else if (userPlan.goal.includes('Definir') || userPlan.goal.includes('condicionamento')) targetReps = 15; 
 
       let baseWeight = 20;
-      if (userPlan.goal === 'Ficar mais forte') baseWeight = 30;
       if (ex.equipment === 'bodyweight') baseWeight = 0;
-
-      // Algoritmo de sobrecarga contínua (Progressão)
-      let lastExerciseSets: any[] = [];
-      const sortedWorkouts = [...rawDbWorkouts].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
-      for (const workout of sortedWorkouts) {
-        if (workout.sets) {
-          const matchSets = workout.sets.filter((s: any) => s.exerciseId === ex.id && s.completed);
-          if (matchSets.length > 0) {
-            lastExerciseSets = matchSets;
-            break; 
-          }
-        }
-      }
-
-      if (lastExerciseSets.length > 0) {
-        const lastMaxWeight = Math.max(...lastExerciseSets.map((s: any) => s.weight || 0));
-        if (lastMaxWeight > 0) {
-          let increment = 2;
-          if (userPlan.goal === 'Ficar mais forte') increment = 4;
-          baseWeight = lastMaxWeight + increment;
-        }
-      }
 
       return {
         id: ex.id + '_' + Date.now(),
@@ -250,31 +229,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ]
       };
     });
-
-    // Bloco reativo de Cardio
-    if (userPlan.cardioActive && userPlan.cardioPlacement === 'Inicio do treino' && userPlan.cardioExercises.length > 0) {
-      const selectedId = userPlan.cardioExercises[0];
-      const matchCardio = exercises.find(e => e.id === selectedId) || { name: 'Corrida na Esteira', muscleId: 'cardio' };
-      builtWorkout.unshift({
-        id: 'cardio_start_' + Date.now(),
-        baseExerciseId: selectedId,
-        name: matchCardio.name,
-        muscleId: 'cardio',
-        sets: [{ id: 'cs1', reps: 1, weight: 0, completed: false }]
-      });
-    }
-
-    if (userPlan.cardioActive && userPlan.cardioPlacement === 'Fim do treino' && userPlan.cardioExercises.length > 0) {
-      const selectedId = userPlan.cardioExercises[0];
-      const matchCardio = exercises.find(e => e.id === selectedId) || { name: 'Corrida na Esteira', muscleId: 'cardio' };
-      builtWorkout.push({
-        id: 'cardio_end_' + Date.now(),
-        baseExerciseId: selectedId,
-        name: matchCardio.name,
-        muscleId: 'cardio',
-        sets: [{ id: 'cs1', reps: 1, weight: 0, completed: false }]
-      });
-    }
 
     setCurrentWorkout(builtWorkout);
   };
@@ -301,26 +255,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const findBaseExercise = exercises.find(ex => ex.id === newExerciseBaseId);
     if (!findBaseExercise) return;
 
-    setCurrentWorkout(prev => prev.map(ex => {
-      if (ex.id !== currentExerciseId) return ex;
-      return {
-        id: findBaseExercise.id + '_' + Date.now(),
-        baseExerciseId: findBaseExercise.id,
-        name: findBaseExercise.name,
-        muscleId: findBaseExercise.muscleId,
-        sets: [
-          { id: 's1', reps: 10, weight: 20, completed: false },
-          { id: 's2', reps: 10, weight: 20, completed: false },
-          { id: 's3', reps: 10, weight: 20, completed: false },
-        ]
-      };
-    }));
+    setCurrentWorkout(prev => {
+      const match = prev.find(e => e.id === currentExerciseId);
+      if (match) {
+        // Modo Adição ou Substituição
+        return prev.map(ex => {
+          if (ex.id !== currentExerciseId) return ex;
+          return {
+            id: findBaseExercise.id + '_' + Date.now(),
+            baseExerciseId: findBaseExercise.id,
+            name: findBaseExercise.name,
+            muscleId: findBaseExercise.muscleId,
+            sets: [
+              { id: 's1', reps: 10, weight: 20, completed: false },
+              { id: 's2', reps: 10, weight: 20, completed: false },
+              { id: 's3', reps: 10, weight: 20, completed: false },
+            ]
+          };
+        });
+      } else {
+        // Se for avulso, adiciona ao fim
+        const targetReps = 10;
+        return [...prev, {
+          id: findBaseExercise.id + '_' + Date.now(),
+          baseExerciseId: findBaseExercise.id,
+          name: findBaseExercise.name,
+          muscleId: findBaseExercise.muscleId,
+          sets: [
+            { id: 's1', reps: targetReps, weight: 20, completed: false },
+            { id: 's2', reps: targetReps, weight: 20, completed: false },
+            { id: 's3', reps: targetReps, weight: 20, completed: false },
+          ]
+        }];
+      }
+    });
   };
 
   const finishWorkout = async () => {
     let totalCompletedSets = 0;
     const setsToSave: any[] = [];
-
     const workoutId = 'w_' + Date.now();
     const workoutDate = new Date().toISOString();
 
