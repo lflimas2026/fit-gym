@@ -21,7 +21,7 @@ export interface BaseExercise {
   name: string;
   muscleId: string;
   equipment: string;
-  gifUrl?: string;       
+  gifUrl?: string; // Coluna integrada do ExerciseDB       
   instructions?: string; 
 }
 
@@ -166,7 +166,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let targetMuscles: string[] = [];
     const splitLower = userPlan.splitPreference.toLowerCase();
 
-    // Filtros de Músculos Corrigidos e Resilientes
     if (splitLower.includes('push')) {
       targetMuscles = ['chest', 'shoulders']; 
     } else if (splitLower.includes('pull')) {
@@ -176,7 +175,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } else if (splitLower.includes('corpo inteiro')) {
       targetMuscles = ['chest', 'back', 'quads', 'abs'];
     } else {
-      // Fallback Inteligente baseada em Fadiga
       const muscleIds = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
       const sortedMuscles = muscleIds
         .map(id => ({ id, score: calculateRecovery(id, workoutHistory) }))
@@ -192,7 +190,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       filteredExercises = filteredExercises.filter(ex => ex.equipment === 'bodyweight');
     }
 
-    // Fallback absoluto caso o filtro esvazie a lista
     if (filteredExercises.length === 0) {
       filteredExercises = exercises.slice(0, 10);
     }
@@ -258,7 +255,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentWorkout(prev => {
       const match = prev.find(e => e.id === currentExerciseId);
       if (match) {
-        // Modo Adição ou Substituição
         return prev.map(ex => {
           if (ex.id !== currentExerciseId) return ex;
           return {
@@ -274,17 +270,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
         });
       } else {
-        // Se for avulso, adiciona ao fim
-        const targetReps = 10;
+        // Fluxo de Inclusão Avulsa ou via "Escolher Músculo" (Garante entrada limpa no final)
         return [...prev, {
           id: findBaseExercise.id + '_' + Date.now(),
           baseExerciseId: findBaseExercise.id,
           name: findBaseExercise.name,
           muscleId: findBaseExercise.muscleId,
           sets: [
-            { id: 's1', reps: targetReps, weight: 20, completed: false },
-            { id: 's2', reps: targetReps, weight: 20, completed: false },
-            { id: 's3', reps: targetReps, weight: 20, completed: false },
+            { id: 's1', reps: 10, weight: 20, completed: false },
+            { id: 's2', reps: 10, weight: 20, completed: false },
+            { id: 's3', reps: 10, weight: 20, completed: false },
           ]
         }];
       }
