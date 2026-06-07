@@ -1,6 +1,6 @@
 // src/context/AppContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { calculateRecovery, calculate1RM, suggestWeightForReps } from '../utils/workoutHelpers';
+import { calculateRecovery } from '../utils/workoutHelpers';
 
 export interface WorkoutLog {
   muscleId: string;
@@ -66,6 +66,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutLog[]>([]);
   const [currentWorkout, setCurrentWorkout] = useState<WorkoutExercise[]>([]);
+  const [rawDbWorkouts, setRawDbWorkouts] = useState<any[]>([]); // Cache local para histórico detalhado de cargas
 
   const [userPreferences, setUserPreferences] = useState<{ location: LocationType }>(() => {
     const saved = localStorage.getItem('fitgym_preferences');
@@ -89,42 +90,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
     cardioExercises: []
   });
 
-  // Carrega Exercícios, Histórico e Preferências de Plano do D1 de forma unificada
-  useEffect(() => {
-    async function bootstrapData() {
-      try {
-        setLoading(true);
-        
-        // 1. Carrega banco de exercícios ativos
-        const resExercises = await fetch('/api/exercises');
-        if (resExercises.ok) setExercises(await resExercises.json());
+  // Função centralizada para carregar dados do D1
+  const loadD1Data = async () => {
+    try {
+      const resExercises = await fetch('/api/exercises');
+      if (resExercises.ok) setExercises(await resExercises.json());
 
-        // 2. Carrega preferências estruturadas do plano de treino
-        const resPlan = await fetch('/api/plan');
-        if (resPlan.ok) {
-          const planData = await resPlan.json();
-          if (planData) {
-            setUserPlan({
-              ...planData,
-              cardioExercises: planData.cardioExercises ? JSON.parse(planData.cardioExercises) : []
+      const resPlan = await fetch('/api/plan');
+      if (resPlan.ok) {
+        const planData = await resPlan.json();
+        if (planData) {
+          setUserPlan({
+            ...planData,
+            cardioExercises: planData.cardioExercises ? JSON.parse(planData.cardioExercises) : []
+          });
+        }
+      }
+
+      const resWorkouts = await fetch('/api/workouts');
+      if (resWorkouts.ok) {
+        const data = await resWorkouts.json();
+        setRawDbWorkouts(data);
+        
+        // Reconstrói os logs simplificados de fadiga
+        const recoveredLogs: WorkoutLog[] = [];
+        data.forEach((w: any) => {
+          if (w.sets) {
+            const musclesInWorkout = new Set<string>(w.sets.map((s: any) => s.muscleId).filter(Boolean));
+            musclesInWorkout.forEach(m => {
+              recoveredLogs.push({ muscleId: m, date: w.date, intensity: 'heavy' });
             });
           }
-        }
-
-        // Sincronizações secundárias de cache local para segurança de tela
-        const savedHistory = localStorage.getItem('fitgym_history');
-        if (savedHistory) setWorkoutHistory(JSON.parse(savedHistory));
-
-        const savedCurrent = localStorage.getItem('fitgym_current');
-        if (savedCurrent) setCurrentWorkout(JSON.parse(savedCurrent));
-
-      } catch (err) {
-        console.error("Erro no bootstrap do D1:", err);
-      } finally {
-        setLoading(false);
+        });
+        setWorkoutHistory(recoveredLogs);
       }
+    } catch (err) {
+      console.error("Erro no bootstrap do D1:", err);
     }
-    bootstrapData();
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    loadD1Data().finally(() => setLoading(false));
+
+    const savedCurrent = localStorage.getItem('fitgym_current');
+    if (savedCurrent) setCurrentWorkout(JSON.parse(savedCurrent));
   }, []);
 
   useEffect(() => {
@@ -157,7 +167,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const generateWorkout = () => {
     if (exercises.length === 0) return;
 
-    // MOTOR DE INTELIGÊNCIA: Incorpora os novos filtros do painel Meu Plano
     let targetMuscles: string[] = [];
 
     if (userPlan.splitPreference === 'Push/Pull/Legs') {
@@ -168,7 +177,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } else if (userPlan.splitPreference === 'Corpo inteiro') {
       targetMuscles = ['chest', 'back', 'quads', 'abs'];
     } else {
-      // Padrão: Sugestão clássica do Fitbod baseada em fadiga e grupos descansados
       const muscleIds = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
       const sortedMuscles = muscleIds
         .map(id => ({ id, score: calculateRecovery(id, workoutHistory) }))
@@ -184,11 +192,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       filteredExercises = filteredExercises.filter(ex => ex.equipment === 'bodyweight');
     }
 
-    // Variabilidade: Altera o fator do randomizador baseado nas preferências de consistência
     const seed = userPlan.variability === 'Mais variado' ? 0.85 : (userPlan.variability === 'Mais consistente' ? 0.25 : 0.5);
     const shuffled = [...filteredExercises].sort(() => seed - Math.random());
     
-    // Altera a quantidade de exercícios da sessão de acordo com a duração definida
     let numExercises = 4;
     if (userPlan.duration >= 60) numExercises = 6;
     if (userPlan.duration >= 90) numExercises = 8;
@@ -197,11 +203,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const selectedExercises = shuffled.slice(0, numExercises);
 
     const builtWorkout: WorkoutExercise[] = selectedExercises.map(ex => {
-      // Calibra as faixas de repetições ideais baseadas nas metas e experiência do plano
       let targetReps = 10;
       if (userPlan.experience === 'Iniciante') targetReps = 12;
       if (userPlan.experience === 'Avançado') targetReps = 8;
-      if (userPlan.goal === 'Ficar mais forte' || userPlan.goal === 'Praticar Powerlifting') targetReps = 5;
+      if (userPlan.goal === 'Ficar mais forte') targetReps = 5;
+
+      // 🧠 ALGORITMO DE PROGRESSÃO DE CARGA AUTOMÁTICA
+      let baseWeight = 10; // Carga inicial padrão de segurança
+      if (userPlan.experience === 'Intermediário') baseWeight = 20;
+      if (userPlan.experience === 'Avançado') baseWeight = 30;
+      if (ex.equipment === 'bodyweight') baseWeight = 0;
+
+      // Procura no histórico detalhado pelo último registro deste exercício específico
+      let lastExerciseSets: any[] = [];
+      const sortedWorkouts = [...rawDbWorkouts].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      for (const workout of sortedWorkouts) {
+        if (workout.sets) {
+          const matchSets = workout.sets.filter((s: any) => s.exerciseId === ex.id && s.completed);
+          if (matchSets.length > 0) {
+            lastExerciseSets = matchSets;
+            break; 
+          }
+        }
+      }
+
+      // Se encontrou o exercício no passado, calcula a progressão adaptativa
+      if (lastExerciseSets.length > 0) {
+        const lastMaxWeight = Math.max(...lastExerciseSets.map((s: any) => s.weight || 0));
+        
+        if (lastMaxWeight > 0) {
+          // Incrementa baseado no objetivo do plano de treino
+          let increment = 2; // Padrão: +2kg (halteres/máquinas comuns)
+          if (userPlan.goal === 'Ficar mais forte') increment = 4; // Mais foco em sobrecarga de peso
+          
+          baseWeight = lastMaxWeight + increment;
+        }
+      }
 
       return {
         id: ex.id + '_' + Date.now(),
@@ -209,14 +247,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         name: ex.name,
         muscleId: ex.muscleId,
         sets: [
-          { id: 's1', reps: targetReps, weight: 20, completed: false },
-          { id: 's2', reps: targetReps, weight: 20, completed: false },
-          { id: 's3', reps: targetReps, weight: 20, completed: false },
+          { id: 's1', reps: targetReps, weight: baseWeight, completed: false },
+          { id: 's2', reps: targetReps, weight: baseWeight, completed: false },
+          { id: 's3', reps: targetReps, weight: baseWeight, completed: false },
         ]
       };
     });
 
-    // Inserção reativa de Cardio Dinâmico para o Início do Treino
+    // Inserção de Cardio Dinâmico
     if (userPlan.cardioActive && userPlan.cardioPlacement === 'Inicio do treino' && userPlan.cardioExercises.length > 0) {
       const selectedId = userPlan.cardioExercises[0];
       const matchCardio = exercises.find(e => e.id === selectedId) || { name: 'Corrida na Esteira', muscleId: 'cardio' };
@@ -229,7 +267,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     }
 
-    // Inserção reativa de Cardio Dinâmico para o Fim do Treino
     if (userPlan.cardioActive && userPlan.cardioPlacement === 'Fim do treino' && userPlan.cardioExercises.length > 0) {
       const selectedId = userPlan.cardioExercises[0];
       const matchCardio = exercises.find(e => e.id === selectedId) || { name: 'Corrida na Esteira', muscleId: 'cardio' };
@@ -284,7 +321,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const finishWorkout = async () => {
-    const musclesTrained = new Set<string>();
     let totalCompletedSets = 0;
     const setsToSave: any[] = [];
 
@@ -295,10 +331,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ex.sets.forEach(set => {
         if (set.completed) {
           totalCompletedSets++;
-          musclesTrained.add(ex.muscleId);
           setsToSave.push({
             id: 'set_' + Math.random().toString(36).substring(2, 11),
             exerciseId: ex.baseExerciseId,
+            muscleId: ex.muscleId, // Injeta o grupo para facilitar o motor de fadiga
             weight: set.weight,
             reps: set.reps,
             completed: true
@@ -324,15 +360,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         })
       });
 
-      const newLogs: WorkoutLog[] = Array.from(musclesTrained).map(muscleId => ({
-        muscleId,
-        date: workoutDate,
-        intensity: 'heavy'
-      }));
-
-      setWorkoutHistory(prev => [...newLogs, ...prev]);
+      // Recarrega o cache local unificado do D1 para recalcular a fadiga e as próximas cargas instantaneamente
+      await loadD1Data();
       setCurrentWorkout([]);
-      alert("Treino finalizado com sucesso!");
+      alert("Treino finalizado com sucesso! Cargas e fadiga computadas pela IA.");
     } catch (err) {
       console.error(err);
     }
