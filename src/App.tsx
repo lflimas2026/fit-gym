@@ -13,7 +13,7 @@ import RecordsTab from './components/RecordsTab';
 import { 
   Dumbbell, MapPin, CheckCircle2, Circle, CheckSquare, RefreshCw, X, 
   History, Info, Trophy, Activity, CalendarDays, SlidersHorizontal,
-  Flame, PlusCircle, Bookmark, Zap, Clock, Sparkles, Plus, Search
+  Flame, PlusCircle, Bookmark, Zap, Clock, Sparkles, Plus, Search, Play
 } from 'lucide-react';
 
 export default function App() {
@@ -33,20 +33,27 @@ export default function App() {
   
   const [activeTab, setActiveTab] = useState<'workout' | 'recovery' | 'log' | 'body'>('workout');
 
+  // ESTADO DE TREINO ATIVO (PLAY/FINISH)
+  const [isWorkoutStarted, setIsWorkoutStarted] = useState(false);
+
   // CONTROLES DE MODAIS E GAVETAS
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSplitMenu, setShowSplitMenu] = useState(false);
   
-  // CRIAR TREINO DO ZERO (ESTADOS)
+  // CRIAR TREINO DO ZERO
   const [isCreateFromZeroOpen, setIsCreateFromZeroOpen] = useState(false);
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([]);
   const [customWorkoutName, setCustomWorkoutName] = useState('');
   const [showNameModal, setShowNameModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // ADICIONAR EXERCÍCIO AVULSO NO TREINO DO DIA
+  // ESCOLHER MÚSCULO COMPLETO
+  const [isChooseMuscleOpen, setIsChooseMuscleOpen] = useState(false);
+  const [selectedMuscleFilter, setSelectedMuscleFilter] = useState<string | null>(null);
+
+  // ADICIONAR EXERCÍCIO AVULSO
   const [isAddExerciseOpen, setIsAddExerciseOpen] = useState(false);
 
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
@@ -59,6 +66,8 @@ export default function App() {
   const [selectedExerciseDetails, setSelectedExerciseDetails] = useState<{ name: string; equipment: string; muscleId: string } | null>(null);
 
   const [musclePercentages, setMusclePercentages] = useState<{ [key: string]: number }>({});
+
+  const musclesList = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
 
   useEffect(() => {
     async function loadSummaryData() {
@@ -106,20 +115,31 @@ export default function App() {
   };
 
   const handleSelectReplacement = (newBaseId: string) => {
+    // Se veio do modal Substituir comum
     if (activeExerciseId) {
       replaceExercise(activeExerciseId, newBaseId);
-      setIsModalOpen(false);
-      setActiveExerciseId(null);
-      setActiveMuscleId(null);
+    } else {
+      // Se veio da adição avulsa (+), insere no fim
+      replaceExercise('avulso_add', newBaseId);
     }
+    setIsModalOpen(false);
+    setIsAddExerciseOpen(false);
+    setIsChooseMuscleOpen(false);
+    setActiveExerciseId(null);
+    setActiveMuscleId(null);
   };
 
   const handleLocationChange = (type: LocationType) => {
     changeLocationSetting(type);
+    setIsWorkoutStarted(false); // Reseta para segurança
     setTimeout(() => { generateWorkout(); }, 50);
   };
 
   const handleSetToggle = (exerciseId: string, setId: string, currentCompleted: boolean, reps: number, weight: number) => {
+    if (!isWorkoutStarted) {
+      alert("Toque em INICIAR TREINO no rodapé antes de marcar as séries!");
+      return;
+    }
     const nextCompletedState = !currentCompleted;
     updateSetProgress(exerciseId, setId, nextCompletedState, reps, weight);
     if (nextCompletedState) {
@@ -134,55 +154,48 @@ export default function App() {
   const changeSplitFromTop = (newSplit: string) => {
     updateUserPlan({ splitPreference: newSplit });
     setShowSplitMenu(false);
+    setIsWorkoutStarted(false);
     setTimeout(() => { generateWorkout(); }, 50);
   };
 
   const changeDurationFromTop = (mins: number) => {
     updateUserPlan({ duration: mins });
+    setIsWorkoutStarted(false);
     setTimeout(() => { generateWorkout(); }, 50);
   };
 
   const changeGoalFromTop = (targetGoal: string) => {
     updateUserPlan({ goal: targetGoal });
+    setIsWorkoutStarted(false);
     setTimeout(() => { generateWorkout(); }, 50);
   };
 
-  // LÓGICA DO SELECIONAR NO CREATIVE MODE (Criar do Zero)
   const handleToggleSelectExercise = (id: string) => {
     setSelectedExerciseIds(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
 
-  const handleSaveCustomWorkout = () => {
-    if (selectedExerciseIds.length === 0) return;
-    setShowNameModal(true);
-  };
-
   const handleConfirmSaveWorkoutName = () => {
     if (!customWorkoutName.trim()) return;
-    
-    // Aqui no futuro daremos um POST para salvar a rotina customizada no D1
-    alert(`Treino "${customWorkoutName}" salvo com sucesso com ${selectedExerciseIds.length} exercícios!`);
-    
+    alert(`Treino "${customWorkoutName}" salvo com sucesso!`);
     setShowNameModal(false);
     setIsCreateFromZeroOpen(false);
     setSelectedExerciseIds([]);
     setCustomWorkoutName('');
   };
 
-  // Filtros de pesquisa
+  // Filtros de Pesquisa para o Criar do Zero
   const filteredExercisesList = exercises.filter(ex => 
     ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     ex.muscleId.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const replacementOptions = exercises.filter(ex => {
-    if (ex.muscleId !== activeMuscleId) return false;
-    if (userPreferences.location === 'Apenas Halteres') return ex.equipment === 'dumbbell' || ex.equipment === 'bodyweight';
-    if (userPreferences.location === 'Peso Corporal') return ex.equipment === 'bodyweight';
-    return true;
-  });
+  // Opções para o modal de Substituição real baseadas nas mídias carregadas
+  const replacementOptions = exercises.filter(ex => ex.muscleId === activeMuscleId);
+
+  // Opções para Escolher Músculo filtradas pelo grupo clicado
+  const chooseMuscleExercises = exercises.filter(ex => ex.muscleId === selectedMuscleFilter);
 
   const uniqueWorkoutMuscles = Array.from(new Set(currentWorkout.map(e => e.muscleId).filter(m => m !== 'cardio')));
 
@@ -206,14 +219,14 @@ export default function App() {
             </button>
             <div 
               onClick={() => setIsPlanOpen(true)}
-              className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold text-emerald-400 cursor-pointer hover:border-emerald-500 transition-all active:scale-95 shadow-md"
+              className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold text-emerald-400 cursor-pointer hover:border-emerald-500 transition-all shadow-md"
             >
               FL
             </div>
           </div>
         </header>
 
-        {/* PROVEDOR DE TELAS */}
+        {/* CONTAINER DE CONTEÚDO */}
         <main className="w-full flex-1">
           {activeTab === 'workout' && (
             <div className="flex flex-col gap-5 animate-in fade-in duration-200">
@@ -233,7 +246,7 @@ export default function App() {
                   <div className="relative">
                     <button 
                       onClick={() => setShowSplitMenu(!showSplitMenu)}
-                      className="bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-xl text-[11px] font-bold text-zinc-300 flex items-center gap-1 active:scale-95 transition-all"
+                      className="bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-xl text-[11px] font-bold text-zinc-300 flex items-center gap-1"
                     >
                       <SlidersHorizontal size={11} /> Trocar
                     </button>
@@ -244,7 +257,7 @@ export default function App() {
                           <button
                             key={splitOpt}
                             onClick={() => changeSplitFromTop(splitOpt)}
-                            className="w-full text-left px-3 py-2 text-xs font-bold rounded-lg text-zinc-400 hover:bg-zinc-900 hover:text-white transition-colors"
+                            className="w-full text-left px-3 py-2 text-xs font-bold rounded-lg text-zinc-400 hover:bg-zinc-900 hover:text-white"
                           >
                             {splitOpt}
                           </button>
@@ -255,7 +268,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* CUANTO TEMPO TENHO DISPONÍVEL */}
+              {/* TEMPO DISPONÍVEL */}
               <section className="flex flex-col gap-1.5 px-0.5">
                 <label className="text-[9px] font-black tracking-widest text-zinc-500 uppercase flex items-center gap-1">
                   <Clock size={10} /> Quanto tempo tenho disponível
@@ -266,9 +279,7 @@ export default function App() {
                       key={mins}
                       onClick={() => changeDurationFromTop(mins)}
                       className={`py-2 rounded-lg text-center text-[10px] font-bold border transition-all ${
-                        userPlan.duration === mins 
-                          ? 'bg-[#121215] border-[#1F1F24] text-emerald-400 font-black' 
-                          : 'bg-transparent border-transparent text-zinc-500'
+                        userPlan.duration === mins ? 'bg-[#121215] border-[#1F1F24] text-emerald-400 font-black' : 'bg-transparent border-transparent text-zinc-500'
                       }`}
                     >
                       {mins}m
@@ -294,9 +305,7 @@ export default function App() {
                         key={goalOpt}
                         onClick={() => changeGoalFromTop(goalOpt)}
                         className={`text-[10px] px-3.5 py-2 rounded-xl whitespace-nowrap font-bold transition-all border ${
-                          isSelected 
-                            ? 'bg-emerald-950/20 text-emerald-400 border-emerald-500/30 font-black' 
-                            : 'bg-[#0A0A0C] border-[#1A1A1E] text-zinc-500'
+                          isSelected ? 'bg-emerald-950/20 text-emerald-400 border-emerald-500/30 font-black' : 'bg-[#0A0A0C] border-[#1A1A1E] text-zinc-500'
                         }`}
                       >
                         {goalOpt}
@@ -306,84 +315,74 @@ export default function App() {
                 </div>
               </section>
 
-              {/* MÚSCULOS ALVO E PORCENTAGEM DE DESCANSO */}
+              {/* MÚSCULOS ALVO */}
               <section className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 shadow-xl">
                 <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase block mb-3">
                   Músculos Alvo de Hoje
                 </span>
                 <div className="flex flex-col gap-2.5">
-                  {uniqueWorkoutMuscles.length === 0 ? (
-                    <p className="text-[10px] text-zinc-600 italic">Nenhum músculo alvo selecionado para este split.</p>
-                  ) : (
-                    uniqueWorkoutMuscles.map((mId) => {
-                      const pct = musclePercentages[mId] ?? 100;
-                      return (
-                        <div key={mId} className="flex justify-between items-center text-xs">
-                          <span className="font-bold text-zinc-300 capitalize">{mId}</span>
-                          <div className="flex items-center gap-3 w-2/3">
-                            <div className="flex-1 h-1.5 bg-zinc-900 rounded-full overflow-hidden">
-                              <div className={`h-full rounded-full ${pct < 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
-                            </div>
-                            <span className={`text-[10px] font-bold w-12 text-right ${pct < 50 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              {pct}% OK
-                            </span>
+                  {uniqueWorkoutMuscles.map((mId) => {
+                    const pct = musclePercentages[mId] ?? 100;
+                    return (
+                      <div key={mId} className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-zinc-300 capitalize">{mId}</span>
+                        <div className="flex items-center gap-3 w-2/3">
+                          <div className="flex-1 h-1.5 bg-zinc-900 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${pct < 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
                           </div>
+                          <span className={`text-[10px] font-bold w-12 text-right ${pct < 50 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            {pct}% OK
+                          </span>
                         </div>
-                      );
-                    })
-                  )}
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
 
-              {/* EXERCÍCIOS DO DIA */}
+              {/* LISTAGEM DOS EXERCÍCIOS DA IA */}
               <section className="w-full flex flex-col gap-3">
                 <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase px-0.5">
                   Exercícios do Dia
                 </span>
                 
-                {currentWorkout.length === 0 ? (
-                  <div className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-6 text-center">
-                    <p className="text-xs text-zinc-500">Nenhum exercício carregado. Toque em Regenerar.</p>
-                  </div>
-                ) : (
-                  currentWorkout.map((ex, idx) => (
-                    <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-3">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1 pr-2 cursor-pointer group select-none" onClick={() => openDetailsModal(ex.baseExerciseId, ex.name, ex.muscleId)}>
-                          <h4 className="text-xs font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors flex items-center gap-1">
-                            {idx + 1}. {ex.name}
-                            <Info size={11} className="text-zinc-600 group-hover:text-emerald-500 shrink-0" />
-                          </h4>
-                          <p className="text-[9px] mt-0.5 uppercase tracking-wider font-semibold text-emerald-500">{ex.muscleId}</p>
-                        </div>
-                        <button onClick={() => openReplacementModal(ex.id, ex.muscleId)} className="flex items-center gap-1 bg-[#121215] border border-zinc-800 text-zinc-400 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all active:scale-95">
-                          <RefreshCw size={10} /> Substituir
-                        </button>
+                {currentWorkout.map((ex, idx) => (
+                  <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 pr-2 cursor-pointer group" onClick={() => openDetailsModal(ex.baseExerciseId, ex.name, ex.muscleId)}>
+                        <h4 className="text-xs font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors flex items-center gap-1">
+                          {idx + 1}. {ex.name}
+                          <Info size={11} className="text-zinc-600 shrink-0" />
+                        </h4>
+                        <p className="text-[9px] mt-0.5 uppercase tracking-wider font-semibold text-emerald-500">{ex.muscleId}</p>
                       </div>
-
-                      <div className="flex flex-col gap-2 mt-1 border-t border-zinc-900 pt-3">
-                        {ex.sets.map((set, setIdx) => (
-                          <div key={set.id} className={`flex justify-between items-center p-2 rounded-xl border transition-all ${set.completed ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-[#121215] border-[#1F1F24]'}`}>
-                            <span className="text-xs font-bold text-zinc-400 w-8 pl-1">S{setIdx + 1}</span>
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1.5">
-                                <input type="number" value={set.weight} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))} className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none" />
-                                <span className="text-[10px] text-zinc-500">kg</span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <input type="number" value={set.reps} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, Number(e.target.value), set.weight)} className="w-10 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none" />
-                                <span className="text-[10px] text-zinc-500">reps</span>
-                              </div>
-                            </div>
-                            <button onClick={() => handleSetToggle(ex.id, set.id, set.completed, set.reps, set.weight)} className={`p-1.5 rounded-lg ${set.completed ? 'text-emerald-400' : 'text-zinc-600'}`}>
-                              {set.completed ? <CheckCircle2 size={19} /> : <Circle size={19} />}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                      <button onClick={() => openReplacementModal(ex.id, ex.muscleId)} className="flex items-center gap-1 bg-[#121215] border border-zinc-800 text-zinc-400 text-[10px] font-bold px-2.5 py-1.5 rounded-lg active:scale-95 transition-all">
+                        <RefreshCw size={10} /> Substituir
+                      </button>
                     </div>
-                  ))
-                )}
+
+                    <div className="flex flex-col gap-2 mt-1 border-t border-zinc-900 pt-3">
+                      {ex.sets.map((set, setIdx) => (
+                        <div key={set.id} className={`flex justify-between items-center p-2 rounded-xl border transition-all ${set.completed ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-[#121215] border-[#1F1F24]'}`}>
+                          <span className="text-xs font-bold text-zinc-400 w-8 pl-1">S{setIdx + 1}</span>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <input type="number" disabled={!isWorkoutStarted} value={set.weight} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))} className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none disabled:opacity-40" />
+                              <span className="text-[10px] text-zinc-500">kg</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <input type="number" disabled={!isWorkoutStarted} value={set.reps} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, Number(e.target.value), set.weight)} className="w-10 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none disabled:opacity-40" />
+                              <span className="text-[10px] text-zinc-500">reps</span>
+                            </div>
+                          </div>
+                          <button onClick={() => handleSetToggle(ex.id, set.id, set.completed, set.reps, set.weight)} className={`p-1.5 rounded-lg ${set.completed ? 'text-emerald-400' : 'text-zinc-600'}`}>
+                            {set.completed ? <CheckCircle2 size={19} /> : <Circle size={19} />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
 
                 {/* ➕ BOTÃO "+" LOGO APÓS O ÚLTIMO EXERCÍCIO */}
                 <button 
@@ -394,17 +393,31 @@ export default function App() {
                 </button>
               </section>
 
-              {/* REGENERAR COM FILTROS */}
-              <button 
-                onClick={generateWorkout}
-                className="w-full bg-[#0A0A0C] border border-[#1A1A1E] text-zinc-400 hover:text-white font-bold text-xs tracking-wide uppercase py-3.5 rounded-xl transition-all"
-              >
-                Regenerar Rotina da IA
-              </button>
+              {/* SELETOR DE AMBIENTE */}
+              <section className="flex flex-col gap-1.5 px-0.5 pt-2">
+                <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase">Ambiente</span>
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  {(['Academia Completa', 'Apenas Halteres', 'Peso Corporal'] as LocationType[]).map((loc) => {
+                    const isSelected = userPreferences.location === loc;
+                    return (
+                      <button
+                        key={loc}
+                        onClick={() => handleLocationChange(loc)}
+                        className={`text-[10px] px-4 py-2.5 rounded-full whitespace-nowrap flex items-center gap-1.5 font-bold transition-all border ${
+                          isSelected ? 'bg-zinc-900 text-white border-zinc-700' : 'bg-[#0A0A0C] border-[#1A1A1E] text-zinc-500'
+                        }`}
+                      >
+                        <MapPin size={10} />
+                        {loc}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
 
-              {/* 4️⃣ OS 4 CARDS JOGADOS PARA O FINAL (DEPOIS DOS EXERCÍCIOS DO DIA) */}
+              {/* 4️⃣ CARDS DE ATALHOS TRANSFERIDOS PARA O FINAL DE TUDO */}
               <section className="grid grid-cols-2 gap-2.5 pt-4 border-t border-zinc-900">
-                <div onClick={() => setIsAddExerciseOpen(true)} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
+                <div onClick={() => setIsChooseMuscleOpen(true)} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-emerald-950/20 border border-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-black transition-all">
                     <Flame size={14} />
                   </div>
@@ -414,8 +427,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* BOTÃO CRIAR DO ZERO ATIVO */}
-                <div onClick={() => setIsCreateFromZeroOpen(true)} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
+                <div onClick={() => { setIsCreateFromZeroOpen(true); setSearchQuery(''); }} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-blue-950/20 border border-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-black transition-all">
                     <PlusCircle size={14} />
                   </div>
@@ -454,7 +466,7 @@ export default function App() {
           {activeTab === 'body' && <RecordsTab />}
         </main>
 
-        {/* 📑 TELA COMPLETA: CRIAR TREINO DO ZERO (SELECT MODE) */}
+        {/* 📑 TELA INTERATIVA: CRIAR TREINO DO ZERO */}
         {isCreateFromZeroOpen && (
           <div className="fixed inset-0 bg-black z-50 flex flex-col animate-in slide-in-from-bottom duration-200">
             <header className="p-4 border-b border-zinc-900 flex justify-between items-center bg-[#070709]">
@@ -465,44 +477,46 @@ export default function App() {
               <button onClick={() => setIsCreateFromZeroOpen(false)} className="p-2 bg-zinc-900 rounded-full text-zinc-400 border border-zinc-800"><X size={14} /></button>
             </header>
 
-            {/* Barra de Pesquisa */}
             <div className="p-3 bg-[#0A0A0C] border-b border-zinc-900">
-              <div className="w-full bg-zinc-900 rounded-xl px-3 py-2 flex items-center gap-2 border border-zinc-800 focus-within:border-emerald-500 transition-all">
+              <div className="w-full bg-zinc-900 rounded-xl px-3 py-2 flex items-center gap-2 border border-zinc-800 focus-within:border-emerald-500">
                 <Search size={14} className="text-zinc-500" />
-                <input type="text" placeholder="Buscar exercício ou músculo..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-transparent text-xs text-zinc-200 outline-none" />
+                <input type="text" placeholder="Buscar exercício da base..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-transparent text-xs text-zinc-200 outline-none" />
               </div>
             </div>
 
-            {/* Lista Rolável */}
+            {/* POVOADO: Lista real de exercícios injetada de forma reativa */}
             <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 bg-black scrollbar-hide">
-              {filteredExercisesList.map((ex) => {
-                const isSelected = selectedExerciseIds.includes(ex.id);
-                return (
-                  <div 
-                    key={ex.id}
-                    onClick={() => handleToggleSelectExercise(ex.id)}
-                    className={`p-3.5 rounded-xl border cursor-pointer flex justify-between items-center transition-all ${
-                      isSelected ? 'bg-emerald-950/20 border-emerald-500/40' : 'bg-[#0A0A0C] border-[#1A1A1E]'
-                    }`}
-                  >
-                    <div>
-                      <p className="text-xs font-bold text-white">{ex.name}</p>
-                      <p className="text-[9px] text-emerald-400 uppercase tracking-widest font-semibold mt-0.5">{ex.muscleId}</p>
+              {filteredExercisesList.length === 0 ? (
+                <p className="text-center text-xs text-zinc-600 mt-12">Nenhum exercício encontrado na base D1.</p>
+              ) : (
+                filteredExercisesList.map((ex) => {
+                  const isSelected = selectedExerciseIds.includes(ex.id);
+                  return (
+                    <div 
+                      key={ex.id}
+                      onClick={() => handleToggleSelectExercise(ex.id)}
+                      className={`p-3.5 rounded-xl border cursor-pointer flex justify-between items-center transition-all ${
+                        isSelected ? 'bg-emerald-950/20 border-emerald-500/40' : 'bg-[#0A0A0C] border-[#1A1A1E]'
+                      }`}
+                    >
+                      <div>
+                        <p className="text-xs font-bold text-white">{ex.name}</p>
+                        <p className="text-[9px] text-emerald-400 uppercase font-semibold mt-0.5 tracking-wider">{ex.muscleId}</p>
+                      </div>
+                      <div className={`w-4 h-4 border rounded flex items-center justify-center ${isSelected ? 'bg-emerald-500 border-emerald-500 text-black' : 'border-zinc-700'}`}>
+                        {isSelected && <span className="text-[9px] font-black">✓</span>}
+                      </div>
                     </div>
-                    <div className={`w-4 h-4 border rounded flex items-center justify-center ${isSelected ? 'bg-emerald-500 border-emerald-500 text-black' : 'border-zinc-700'}`}>
-                      {isSelected && <span className="text-[9px] font-black">✓</span>}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
 
-            {/* Footer de Ação */}
             <div className="p-4 border-t border-zinc-900 bg-[#070709] pb-8">
               <button 
-                onClick={handleSaveCustomWorkout}
+                onClick={() => setShowNameModal(true)}
                 disabled={selectedExerciseIds.length === 0}
-                className="w-full bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-black py-3.5 rounded-xl font-black text-xs uppercase tracking-wide transition-all active:scale-[0.99]"
+                className="w-full bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-black py-3.5 rounded-xl font-black text-xs uppercase tracking-wide transition-all"
               >
                 Salvar Grupo de Exercícios
               </button>
@@ -510,21 +524,112 @@ export default function App() {
           </div>
         )}
 
-        {/* 📛 MODAL PARA INSERIR NOME DO TREINO CUSTOMIZADO */}
+        {/* GAVETA: ESCOLHER MÚSCULO ESPECÍFICO */}
+        {isChooseMuscleOpen && (
+          <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-end animate-in fade-in duration-200">
+            <div className="flex-1" onClick={() => setIsChooseMuscleOpen(false)}></div>
+            <div className="w-full max-w-md bg-[#0A0A0C] border-t border-[#1A1A1E] rounded-t-3xl p-5 flex flex-col max-h-[80vh] shadow-2xl">
+              <div className="flex justify-between items-center pb-4 border-b border-zinc-900 mb-4">
+                <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-wide">Escolher Músculo Alvo</h3>
+                  <p className="text-[10px] text-zinc-500">Selecione o grupo muscular para injetar exercícios</p>
+                </div>
+                <button onClick={() => { setIsChooseMuscleOpen(false); setSelectedMuscleFilter(null); }} className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800"><X size={14} /></button>
+              </div>
+
+              {/* Seletor de Músculos da Base */}
+              {!selectedMuscleFilter ? (
+                <div className="grid grid-cols-2 gap-2 overflow-y-auto py-2 scrollbar-hide">
+                  {musclesList.map((m) => (
+                    <button 
+                      key={m}
+                      onClick={() => setSelectedMuscleFilter(m)}
+                      className="p-4 bg-[#121215] border border-[#1F1F24] rounded-xl text-left text-xs font-bold text-zinc-300 hover:border-emerald-500/40 uppercase tracking-wide"
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                /* Sub-lista de exercícios do músculo escolhido */
+                <div className="flex flex-col gap-2 flex-1 overflow-y-auto scrollbar-hide">
+                  <div className="flex justify-between items-center bg-zinc-900/40 p-2 rounded-xl mb-1">
+                    <span className="text-[10px] font-black uppercase text-emerald-400 pl-1">Exibindo: {selectedMuscleFilter}</span>
+                    <button onClick={() => setSelectedMuscleFilter(null)} className="text-[10px] text-zinc-500 font-bold underline px-2">Voltar</button>
+                  </div>
+                  {chooseMuscleExercises.map((option) => (
+                    <button 
+                      key={option.id}
+                      onClick={() => handleSelectReplacement(option.id)}
+                      className="w-full text-left bg-[#121215] border border-[#1F1F24] p-3.5 rounded-xl flex justify-between items-center"
+                    >
+                      <span className="text-xs font-bold text-zinc-200">{option.name}</span>
+                      <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider bg-emerald-950/20 px-2 py-0.5 rounded border border-emerald-500/10">Injetar</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL FIXO DE SUBSTITUIÇÃO COM CORREÇÃO DE ACIONAMENTO */}
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-black/85 z-50 flex flex-col justify-end">
+            <div className="flex-1" onClick={() => setIsModalOpen(false)}></div>
+            <div className="w-full max-w-md bg-[#0A0A0C] border-t border-[#1A1A1E] rounded-t-3xl p-5 flex flex-col max-h-[75vh] shadow-2xl">
+              <div className="flex justify-between items-center pb-4 border-b border-zinc-900 mb-3">
+                <h3 className="text-sm font-black text-white uppercase tracking-wide">Substituir Exercício</h3>
+                <button onClick={() => setIsModalOpen(false)} className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800"><X size={14} /></button>
+              </div>
+              <div className="flex-1 overflow-y-auto py-2 flex flex-col gap-2 scrollbar-hide">
+                {replacementOptions.map((option) => (
+                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center">
+                    <div>
+                      <p className="text-xs font-bold text-zinc-200">{option.name}</p>
+                      <p className="text-[9px] text-zinc-500 uppercase font-semibold mt-0.5">{option.equipment}</p>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 font-bold">Trocar</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ADICIONAR EXERCÍCIO AVULSO (+) */}
+        {isAddExerciseOpen && (
+          <div className="fixed inset-0 bg-black/85 z-50 flex flex-col justify-end">
+            <div className="flex-1" onClick={() => setIsAddExerciseOpen(false)}></div>
+            <div className="w-full max-w-md bg-[#0A0A0C] border-t border-[#1A1A1E] rounded-t-3xl p-5 flex flex-col max-h-[75vh] shadow-2xl">
+              <div className="flex justify-between items-center pb-4 border-b border-zinc-900 mb-3">
+                <h3 className="text-sm font-black text-white uppercase tracking-wide">Adicionar Exercício Avulso</h3>
+                <button onClick={() => setIsAddExerciseOpen(false)} className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800"><X size={14} /></button>
+              </div>
+              <div className="flex-1 overflow-y-auto py-2 flex flex-col gap-2 scrollbar-hide">
+                {exercises.slice(0, 25).map((option) => (
+                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center">
+                    <div>
+                      <p className="text-xs font-bold text-zinc-200">{option.name}</p>
+                      <p className="text-[9px] text-zinc-500 uppercase font-semibold mt-0.5">{option.muscleId}</p>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 font-bold">Adicionar</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL DO NOME DO TREINO CUSTOMIZADO */}
         {showNameModal && (
-          <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4">
             <div className="w-full max-w-sm bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-5 shadow-2xl flex flex-col gap-4">
               <div>
                 <h4 className="text-sm font-black text-white uppercase tracking-wide">Nome do seu Treino</h4>
-                <p className="text-[10px] text-zinc-500 mt-0.5">Escolha um identificador (ex: Treino de Peito do Fernando)</p>
+                <p className="text-[10px] text-zinc-500 mt-0.5">Defina um título para a sua lista customizada</p>
               </div>
-              <input 
-                type="text" 
-                placeholder="Ex: Meu Bloco de Hipertrofia" 
-                value={customWorkoutName}
-                onChange={(e) => setCustomWorkoutName(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs font-bold text-zinc-200 focus:outline-none focus:border-emerald-500"
-              />
+              <input type="text" placeholder="Ex: Meu Bloco de Hipertrofia" value={customWorkoutName} onChange={(e) => setCustomWorkoutName(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs font-bold text-zinc-200 focus:outline-none focus:border-emerald-500" />
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <button onClick={() => setShowNameModal(false)} className="bg-zinc-900 border border-zinc-800 text-zinc-400 py-2.5 rounded-xl text-xs font-bold">Cancelar</button>
                 <button onClick={handleConfirmSaveWorkoutName} className="bg-emerald-500 text-black py-2.5 rounded-xl text-xs font-black uppercase tracking-wider">Confirmar</button>
@@ -533,58 +638,7 @@ export default function App() {
           </div>
         )}
 
-        {/* GAVETA: ADICIONAR EXERCÍCIO AVULSO (+) */}
-        {isAddExerciseOpen && (
-          <div className="fixed inset-0 bg-black/80 z-50 flex flex-col justify-end">
-            <div className="flex-1" onClick={() => setIsAddExerciseOpen(false)}></div>
-            <div className="w-full max-w-md bg-[#0A0A0C] border-t border-[#1A1A1E] rounded-t-3xl p-5 flex flex-col max-h-[75vh] shadow-2xl">
-              <div className="flex justify-between items-center pb-4 border-b border-zinc-900">
-                <h3 className="text-sm font-black text-white uppercase tracking-wide">Adicionar Exercício</h3>
-                <button onClick={() => setIsAddExerciseOpen(false)} className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800"><X size={14} /></button>
-              </div>
-              <div className="flex-1 overflow-y-auto py-3 flex flex-col gap-2 scrollbar-hide">
-                {exercises.slice(0, 15).map((option) => (
-                  <button 
-                    key={option.id} 
-                    onClick={() => {
-                      handleSelectReplacement(option.id); // Reusa o motor para adicionar/trocar
-                      setIsAddExerciseOpen(false);
-                    }} 
-                    className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center"
-                  >
-                    <div>
-                      <p className="text-xs font-bold text-zinc-200">{option.name}</p>
-                      <p className="text-[9px] text-zinc-500 uppercase font-semibold mt-0.5">{option.muscleId} • {option.equipment}</p>
-                    </div>
-                    <span className="text-[10px] text-emerald-400 font-bold">Incluir</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MODAIS TRANSVERSAIS */}
-        <div className="fixed inset-0 bg-black/80 z-50 flex flex-col justify-end pointer-events-none opacity-0 select-none">
-          {/* Seletor Provisório */}
-          {isModalOpen && (
-            <div className="pointer-events-auto opacity-100 select-auto fixed inset-0 bg-black/80 z-50 flex flex-col justify-end">
-              <div className="flex-1" onClick={() => setIsModalOpen(false)}></div>
-              <div className="w-full max-w-md bg-[#0A0A0C] border-t border-[#1A1A1E] rounded-t-3xl p-5 flex flex-col max-h-[75vh]">
-                <div className="flex justify-between items-center pb-4 border-b border-zinc-900">
-                  <h3 className="text-sm font-black text-white uppercase">Trocar Movimento</h3>
-                  <button onClick={() => setIsModalOpen(false)} className="bg-zinc-900 p-2 rounded-full"><X size={14} /></button>
-                </div>
-                <div className="overflow-y-auto py-2 flex flex-col gap-2">
-                  {replacementOptions.map(o => (
-                    <button key={o.id} onClick={() => handleSelectReplacement(o.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl text-xs font-bold text-zinc-300">{o.name}</button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
+        {/* MODAIS TRANSVERSAIS DE INFRAESTRUTURA */}
         <HistoryDrawer isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
         {isDetailsOpen && selectedExerciseDetails && (
           <ExerciseDetailsModal isOpen={isDetailsOpen} onClose={() => setIsDetailsOpen(false)} exerciseName={selectedExerciseDetails.name} equipment={selectedExerciseDetails.equipment} muscleId={selectedExerciseDetails.muscleId} />
@@ -592,13 +646,30 @@ export default function App() {
         {showTimer && <RestTimer initialSeconds={timerDuration} onClose={() => setShowTimer(false)} />}
         <MyPlanDrawer isOpen={isPlanOpen} onClose={() => setIsPlanOpen(false)} />
 
-        {/* BOTÃO FLUTUANTE DE FINALIZAÇÃO */}
+        {/* 🔄 BOTÃO DINÂMICO NO RODAPÉ: INICIAR TREINO ➔ FINALIZAR TREINO */}
         {activeTab === 'workout' && currentWorkout.length > 0 && (
           <div className="fixed bottom-16 left-0 right-0 z-40 flex justify-center px-4 pb-3 pt-2 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none">
             <div className="w-full max-w-md pointer-events-auto">
-              <button onClick={finishWorkout} className="w-full bg-emerald-500 text-black font-black text-xs tracking-wider uppercase py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(16,185,129,0.25)]">
-                <CheckSquare size={16} strokeWidth={2.5} /> Finalizar Treino e Registrar Fadiga
-              </button>
+              {!isWorkoutStarted ? (
+                /* ESTADO 1: INICIAR TREINO */
+                <button 
+                  onClick={() => setIsWorkoutStarted(true)}
+                  className="w-full bg-emerald-500 text-black font-black text-xs tracking-wider uppercase py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(16,185,129,0.3)] active:scale-[0.99]"
+                >
+                  <Play size={14} fill="currentColor" /> Iniciar Treino do Dia
+                </button>
+              ) : (
+                /* ESTADO 2: FINALIZAR TREINO */
+                <button 
+                  onClick={() => {
+                    finishWorkout();
+                    setIsWorkoutStarted(false);
+                  }} 
+                  className="w-full bg-rose-600 text-white font-black text-xs tracking-wider uppercase py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(225,29,72,0.25)] active:scale-[0.99]"
+                >
+                  <CheckSquare size={16} strokeWidth={2.5} /> Finalizar Treino e Registrar Fadiga
+                </button>
+              )}
             </div>
           </div>
         )}
