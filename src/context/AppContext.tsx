@@ -1,7 +1,6 @@
 // src/context/AppContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { calculateRecovery } from '../utils/workoutHelpers';
-// Importação direta da nossa nova base massiva de exercícios
 import { MASTER_EXERCISES_DATABASE } from '../data/exercisesDatabase';
 
 export interface WorkoutLog {
@@ -15,6 +14,7 @@ export interface WorkoutExercise {
   baseExerciseId: string;
   name: string;
   muscleId: string;
+  gifUrl?: string; // 🧠 Injetado para renderizar o GIF dinâmico na aba Workout
   sets: { id: string; reps: number; weight: number; completed: boolean }[];
 }
 
@@ -23,8 +23,7 @@ export interface BaseExercise {
   name: string;
   muscleId: string;
   equipment: string;
-  gifUrl?: string;
-  instructions?: string;       
+  gifUrl?: string;       
 }
 
 export interface UserPlan {
@@ -64,7 +63,6 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  // Inicializa o estado diretamente com a biblioteca massiva integrada
   const [exercises, setExercises] = useState<BaseExercise[]>(MASTER_EXERCISES_DATABASE);
   const [loading, setLoading] = useState<boolean>(true);
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutLog[]>([]);
@@ -91,7 +89,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadD1Data = async () => {
     try {
-      // Carrega as configurações globais de preferências salvas no D1
       const resPlan = await fetch('/api/plan');
       if (resPlan.ok) {
         const planData = await resPlan.json();
@@ -103,7 +100,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Sincroniza o histórico de sessões anteriores
       const resWorkouts = await fetch('/api/workouts');
       if (resWorkouts.ok) {
         const data = await resWorkouts.json();
@@ -118,7 +114,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setWorkoutHistory(recoveredLogs);
       }
     } catch (err) {
-      console.log("Serviço em nuvem offline. Rodando com cache mestre estável.");
+      console.log("Serviço offline. Rodando com cache estável.");
     }
   };
 
@@ -151,7 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated)
-      }).catch(e => console.error("Erro ao sincronizar plano no D1:", e));
+      }).catch(e => console.error(e));
       return updated;
     });
   };
@@ -160,7 +156,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let targetMuscles: string[] = [];
     const splitLower = userPlan.splitPreference.toLowerCase();
 
-    // CÉREBRO DA IA ADAPTATIVA: Mapeia cirurgicamente os grupos com base na sua ação de clique no topo
     if (splitLower.includes('push')) {
       targetMuscles = ['chest', 'shoulders']; 
     } else if (splitLower.includes('pull')) {
@@ -170,7 +165,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } else if (splitLower.includes('corpo inteiro')) {
       targetMuscles = ['chest', 'back', 'quads', 'abs'];
     } else {
-      // Fallback Inteligente: Puxa os 3 músculos mais descansados da sua linha do tempo real
       const muscleIds = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
       const sortedMuscles = muscleIds
         .map(id => ({ id, score: calculateRecovery(id, workoutHistory) }))
@@ -178,25 +172,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       targetMuscles = sortedMuscles.slice(0, 3).map(m => m.id);
     }
 
-    // Filtra os movimentos correspondentes da biblioteca de 150 exercícios
     let filteredExercises = MASTER_EXERCISES_DATABASE.filter(ex => targetMuscles.includes(ex.muscleId.toLowerCase()));
 
-    // Aplica restrições de ambiente (Equipamento)
     if (userPreferences.location === 'Apenas Halteres') {
       filteredExercises = filteredExercises.filter(ex => ex.equipment === 'dumbbell' || ex.equipment === 'bodyweight');
     } else if (userPreferences.location === 'Peso Corporal') {
       filteredExercises = filteredExercises.filter(ex => ex.equipment === 'bodyweight');
     }
 
-    // Trava de segurança para evitar arrays vazios
     if (filteredExercises.length === 0) {
       filteredExercises = MASTER_EXERCISES_DATABASE.slice(0, 10);
     }
 
-    // Sorteador dinâmico
     const shuffled = [...filteredExercises].sort(() => 0.5 - Math.random());
     
-    // Calibra volumetria de movimentos com base no seletor de Tempo
     let numExercises = 4;
     if (userPlan.duration === 15) numExercises = 2;
     else if (userPlan.duration === 30) numExercises = 3;
@@ -207,7 +196,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const selectedExercises = shuffled.slice(0, numExercises);
 
     const builtWorkout: WorkoutExercise[] = selectedExercises.map(ex => {
-      // Ajusta as faixas de repetição dependendo do Tipo de Treino ativo
       let targetReps = 10; 
       if (userPlan.goal.includes('forte') || userPlan.goal.includes('Powerlifting')) targetReps = 5; 
       else if (userPlan.goal.includes('Definir') || userPlan.goal.includes('condicionamento')) targetReps = 15; 
@@ -217,6 +205,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         baseExerciseId: ex.id,
         name: ex.name,
         muscleId: ex.muscleId,
+        gifUrl: ex.gifUrl, // 🧠 AMARRAÇÃO CORRIGIDA: Agora o GIF flui para o treino gerado!
         sets: [
           { id: 's1', reps: targetReps, weight: 20, completed: false },
           { id: 's2', reps: targetReps, weight: 20, completed: false },
@@ -260,6 +249,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             baseExerciseId: findBaseExercise.id,
             name: findBaseExercise.name,
             muscleId: findBaseExercise.muscleId,
+            gifUrl: findBaseExercise.gifUrl, // Mantém o GIF na substituição
             sets: [
               { id: 's1', reps: 10, weight: 20, completed: false },
               { id: 's2', reps: 10, weight: 20, completed: false },
@@ -268,12 +258,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
         });
       } else {
-        // Permite inclusão direta vinda dos cards de atalho do rodapé
         return [...prev, {
           id: findBaseExercise.id + '_' + Date.now(),
           baseExerciseId: findBaseExercise.id,
           name: findBaseExercise.name,
           muscleId: findBaseExercise.muscleId,
+          gifUrl: findBaseExercise.gifUrl, // Mantém o GIF na adição avulsa
           sets: [
             { id: 's1', reps: 10, weight: 20, completed: false },
             { id: 's2', reps: 10, weight: 20, completed: false },
@@ -327,7 +317,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      exercises: MASTER_EXERCISES_DATABASE, // Expõe os 150 exercícios de forma global e irrestrita
+      exercises: MASTER_EXERCISES_DATABASE, 
       workoutHistory,
       currentWorkout,
       userPreferences,
