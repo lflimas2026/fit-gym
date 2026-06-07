@@ -61,11 +61,12 @@ export default function App() {
   const [timerDuration, setTimerDuration] = useState(60);
 
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const [selectedExerciseDetails, setSelectedExerciseDetails] = useState<{ name: string; equipment: string; muscleId: string } | null>(null);
+  const [selectedExerciseDetails, setSelectedExerciseDetails] = useState<{ id: string; name: string; equipment: string; muscleId: string } | null>(null);
 
   const [musclePercentages, setMusclePercentages] = useState<{ [key: string]: number }>({});
 
   const musclesList = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
+  const fallbackImg = 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=100&q=80';
 
   useEffect(() => {
     async function loadSummaryData() {
@@ -91,7 +92,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-black text-zinc-400 flex flex-col justify-center items-center gap-3">
         <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs font-bold tracking-widest uppercase text-zinc-500">Conectando ao Cloudflare D1...</p>
+        <p className="text-xs font-bold tracking-widest uppercase text-zinc-500">Conectando ao laboratório...</p>
       </div>
     );
   }
@@ -103,11 +104,11 @@ export default function App() {
   };
 
   const openDetailsModal = (baseId: string, name: string, muscleId: string) => {
-    const matchedEx = exercises.find(ex => ex.id === baseId);
     setSelectedExerciseDetails({
+      id: baseId,
       name: name,
       muscleId: muscleId,
-      equipment: matchedEx ? matchedEx.equipment : 'bodyweight'
+      equipment: exercises.find(ex => ex.id === baseId)?.equipment || 'machine'
     });
     setIsDetailsOpen(true);
   };
@@ -181,23 +182,23 @@ export default function App() {
     setCustomWorkoutName('');
   };
 
-  // BASE DE EXERCÍCIOS INTEGRAL
-  const baseDataList = exercises.length > 0 ? exercises : [];
-
-  // FILTRO MASSIFICADO DE SUBSTITUIÇÃO (Traz todos da mesma categoria)
-  const finalReplacementOptions = baseDataList.filter(ex => 
-    ex.muscleId?.toLowerCase() === activeMuscleId?.toLowerCase()
+  const filteredExercisesList = exercises.filter(ex => 
+    ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    ex.muscleId.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // FILTRO DO "ESCOLHER MÚSCULO"
-  const finalChooseMuscleExercises = baseDataList.filter(ex => 
-    ex.muscleId?.toLowerCase() === selectedMuscleFilter?.toLowerCase()
+  const finalReplacementOptions = exercises.filter(ex => 
+    ex.muscleId.toLowerCase() === activeMuscleId?.toLowerCase()
+  );
+
+  const finalChooseMuscleExercises = exercises.filter(ex => 
+    ex.muscleId.toLowerCase() === selectedMuscleFilter?.toLowerCase()
   );
 
   const uniqueWorkoutMuscles = Array.from(new Set(currentWorkout.map(e => e.muscleId).filter(m => m !== 'cardio')));
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 flex justify-center items-start antialiased selection:bg-emerald-500/30">
+    <div className="min-h-screen bg-black text-zinc-100 flex justify-center items-start antialiased">
       <div className="w-full max-w-md min-h-screen bg-black flex flex-col gap-6 pt-6 pb-32 px-4 relative">
         
         {/* HEADER */}
@@ -216,14 +217,13 @@ export default function App() {
             </button>
             <div 
               onClick={() => setIsPlanOpen(true)}
-              className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold text-emerald-400 cursor-pointer hover:border-emerald-500 transition-all shadow-md"
+              className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold text-emerald-400 cursor-pointer"
             >
               FL
             </div>
           </div>
         </header>
 
-        {/* PROVEDOR DE TELAS */}
         <main className="w-full flex-1">
           {activeTab === 'workout' && (
             <div className="flex flex-col gap-5 animate-in fade-in duration-200">
@@ -265,7 +265,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* DURAÇÃO */}
+              {/* TEMPO */}
               <section className="flex flex-col gap-1.5 px-0.5">
                 <label className="text-[9px] font-black tracking-widest text-zinc-500 uppercase flex items-center gap-1">
                   <Clock size={10} /> Quanto tempo tenho disponível
@@ -337,51 +337,64 @@ export default function App() {
                 </div>
               </section>
 
-              {/* EXERCÍCIOS DO DIA */}
+              {/* LISTA EXERCÍCIOS DO DIA COM IMAGENS INTEGRADAS E BLINDADAS */}
               <section className="w-full flex flex-col gap-3">
                 <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase px-0.5">
                   Exercícios do Dia
                 </span>
                 
-                {currentWorkout.map((ex, idx) => (
-                  <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1 pr-2 cursor-pointer group" onClick={() => openDetailsModal(ex.baseExerciseId, ex.name, ex.muscleId)}>
-                        <h4 className="text-xs font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors flex items-center gap-1">
-                          {idx + 1}. {ex.name}
-                          <Info size={11} className="text-zinc-600 shrink-0" />
-                        </h4>
-                        <p className="text-[9px] mt-0.5 uppercase tracking-wider font-semibold text-emerald-500">{ex.muscleId}</p>
-                      </div>
-                      <button onClick={() => openReplacementModal(ex.id, ex.muscleId)} className="flex items-center gap-1 bg-[#121215] border border-zinc-800 text-zinc-400 text-[10px] font-bold px-2.5 py-1.5 rounded-lg active:scale-95 transition-all">
-                        <RefreshCw size={10} /> Substituir
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col gap-2 mt-1 border-t border-zinc-900 pt-3">
-                      {ex.sets.map((set, setIdx) => (
-                        <div key={set.id} className={`flex justify-between items-center p-2 rounded-xl border transition-all ${set.completed ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-[#121215] border-[#1F1F24]'}`}>
-                          <span className="text-xs font-bold text-zinc-400 w-8 pl-1">S{setIdx + 1}</span>
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5">
-                              <input type="number" disabled={!isWorkoutStarted} value={set.weight} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))} className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none" />
-                              <span className="text-[10px] text-zinc-500">kg</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <input type="number" disabled={!isWorkoutStarted} value={set.reps} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, Number(e.target.value), set.weight)} className="w-10 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none" />
-                              <span className="text-[10px] text-zinc-500">reps</span>
-                            </div>
-                          </div>
-                          <button onClick={() => handleSetToggle(ex.id, set.id, set.completed, set.reps, set.weight)} className={`p-1.5 rounded-lg ${set.completed ? 'text-emerald-400' : 'text-zinc-600'}`}>
-                            {set.completed ? <CheckCircle2 size={19} /> : <Circle size={19} />}
-                          </button>
+                {currentWorkout.map((ex, idx) => {
+                  return (
+                    <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-3">
+                      <div className="flex justify-between items-start gap-3">
+                        
+                        {/* 🖼️ MINIATURA DO MOVIMENTO TOTALMENTE BLINDADA CONTRA COLAPSO DE LAYOUT */}
+                        <div className="w-12 h-12 min-w-[48px] min-h-[48px] bg-white rounded-xl overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0 shadow-inner">
+                          <img 
+                            src={ex.gifUrl ? ex.gifUrl : fallbackImg} 
+                            alt={ex.name} 
+                            className="w-full h-full object-cover rounded-lg block" 
+                            onError={(e) => { (e.target as HTMLImageElement).src = fallbackImg; }}
+                          />
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
 
-                {/* ➕ ADICIONAR AVULSO */}
+                        <div className="flex-1 cursor-pointer group" onClick={() => openDetailsModal(ex.baseExerciseId, ex.name, ex.muscleId)}>
+                          <h4 className="text-xs font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors flex items-center gap-1">
+                            {idx + 1}. {ex.name}
+                            <Info size={11} className="text-zinc-600 shrink-0" />
+                          </h4>
+                          <p className="text-[9px] mt-0.5 uppercase tracking-wider font-semibold text-emerald-500">{ex.muscleId}</p>
+                        </div>
+                        
+                        <button onClick={() => openReplacementModal(ex.id, ex.muscleId)} className="flex items-center gap-1 bg-[#121215] border border-zinc-800 text-zinc-400 text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0">
+                          <RefreshCw size={10} /> Substituir
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col gap-2 mt-1 border-t border-zinc-900 pt-3">
+                        {ex.sets.map((set, setIdx) => (
+                          <div key={set.id} className={`flex justify-between items-center p-2 rounded-xl border transition-all ${set.completed ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-[#121215] border-[#1F1F24]'}`}>
+                            <span className="text-xs font-bold text-zinc-400 w-8 pl-1">S{setIdx + 1}</span>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1.5">
+                                <input type="number" disabled={!isWorkoutStarted} value={set.weight} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))} className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none" />
+                                <span className="text-[10px] text-zinc-500">kg</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <input type="number" disabled={!isWorkoutStarted} value={set.reps} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, Number(e.target.value), set.weight)} className="w-10 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none" />
+                                <span className="text-[10px] text-zinc-500">reps</span>
+                              </div>
+                            </div>
+                            <button onClick={() => handleSetToggle(ex.id, set.id, set.completed, set.reps, set.weight)} className={`p-1.5 rounded-lg ${set.completed ? 'text-emerald-400' : 'text-zinc-600'}`}>
+                              {set.completed ? <CheckCircle2 size={19} /> : <Circle size={19} />}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
                 <button 
                   onClick={() => setIsAddExerciseOpen(true)}
                   className="w-full bg-[#0A0A0C] border border-dashed border-zinc-800 hover:border-emerald-500/40 p-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-zinc-500 hover:text-emerald-400 transition-all mt-1"
@@ -412,10 +425,10 @@ export default function App() {
                 </div>
               </section>
 
-              {/* 4️⃣ CARDS DE ATALHOS NO FINAL DA TELA */}
+              {/* 4 CARDS NO FINAL DA TELA */}
               <section className="grid grid-cols-2 gap-2.5 pt-4 border-t border-zinc-900">
                 <div onClick={() => setIsChooseMuscleOpen(true)} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-950/20 border border-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-black transition-all">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-950/20 border border-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-black">
                     <Flame size={14} />
                   </div>
                   <div>
@@ -425,7 +438,7 @@ export default function App() {
                 </div>
 
                 <div onClick={() => { setIsCreateFromZeroOpen(true); setSearchQuery(''); }} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
-                  <div className="w-7 h-7 rounded-lg bg-blue-950/20 border border-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-black transition-all">
+                  <div className="w-7 h-7 rounded-lg bg-blue-950/20 border border-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-black">
                     <PlusCircle size={14} />
                   </div>
                   <div>
@@ -435,7 +448,7 @@ export default function App() {
                 </div>
 
                 <div onClick={() => setActiveTab('log')} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
-                  <div className="w-7 h-7 rounded-lg bg-amber-950/20 border border-amber-500/10 flex items-center justify-center text-amber-400 group-hover:bg-amber-500 group-hover:text-black transition-all">
+                  <div className="w-7 h-7 rounded-lg bg-amber-950/20 border border-amber-500/10 flex items-center justify-center text-amber-400 group-hover:bg-amber-500 group-hover:text-black">
                     <Bookmark size={14} />
                   </div>
                   <div>
@@ -445,7 +458,7 @@ export default function App() {
                 </div>
 
                 <div onClick={() => generateWorkout()} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
-                  <div className="w-7 h-7 rounded-lg bg-purple-950/20 border border-purple-500/10 flex items-center justify-center text-purple-400 group-hover:bg-purple-500 group-hover:text-black transition-all">
+                  <div className="w-7 h-7 rounded-lg bg-purple-950/20 border border-purple-500/10 flex items-center justify-center text-purple-400 group-hover:bg-purple-500 group-hover:text-black">
                     <Zap size={14} />
                   </div>
                   <div>
@@ -463,7 +476,7 @@ export default function App() {
           {activeTab === 'body' && <RecordsTab />}
         </main>
 
-        {/* 📑 GAVETA: CRIAR TREINO DO ZERO (AGRUPADO E POVOADO) */}
+        {/* GAVETA: CRIAR TREINO DO ZERO */}
         {isCreateFromZeroOpen && (
           <div className="fixed inset-0 bg-black z-50 flex flex-col animate-in slide-in-from-bottom duration-200">
             <header className="p-4 border-b border-zinc-900 flex justify-between items-center bg-[#070709]">
@@ -481,10 +494,9 @@ export default function App() {
               </div>
             </div>
 
-            {/* AGRUPAMENTO ANATÔMICO EM BLOCOS REATIVOS */}
             <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-5 bg-black scrollbar-hide">
               {musclesList.map((muscleGroup) => {
-                const groupExercises = baseDataList.filter(ex => ex.muscleId?.toLowerCase() === muscleGroup.toLowerCase());
+                const groupExercises = exercises.filter(ex => ex.muscleId.toLowerCase() === muscleGroup.toLowerCase());
                 const filteredGroup = groupExercises.filter(ex => ex.name.toLowerCase().includes(searchQuery.toLowerCase()));
                 
                 if (filteredGroup.length === 0) return null;
@@ -502,12 +514,15 @@ export default function App() {
                           <div 
                             key={ex.id}
                             onClick={() => handleToggleSelectExercise(ex.id)}
-                            className={`p-3.5 rounded-xl border cursor-pointer flex justify-between items-center transition-all ${
+                            className={`p-3.5 rounded-xl border cursor-pointer flex justify-between items-center transition-all gap-3 ${
                               isSelected ? 'bg-emerald-950/20 border-emerald-500/40' : 'bg-[#0A0A0C] border-[#1A1A1E]'
                             }`}
                           >
-                            <span className="text-xs font-bold text-white">{ex.name}</span>
-                            <div className={`w-4 h-4 border rounded flex items-center justify-center ${isSelected ? 'bg-emerald-500 border-emerald-500 text-black' : 'border-zinc-700'}`}>
+                            <div className="w-10 h-10 min-w-[40px] min-h-[40px] bg-white rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0">
+                              <img src={ex.gifUrl || fallbackImg} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = fallbackImg; }} />
+                            </div>
+                            <span className="text-xs font-bold text-white flex-1">{ex.name}</span>
+                            <div className={`w-4 h-4 border rounded flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-emerald-500 border-emerald-500 text-black' : 'border-zinc-700'}`}>
                               {isSelected && <span className="text-[9px] font-black">✓</span>}
                             </div>
                           </div>
@@ -523,7 +538,7 @@ export default function App() {
               <button 
                 onClick={() => setShowNameModal(true)}
                 disabled={selectedExerciseIds.length === 0}
-                className="w-full bg-emerald-500 text-black py-3.5 rounded-xl font-black text-xs uppercase tracking-wide"
+                className="w-full bg-emerald-500 text-black py-3.5 rounded-xl font-black text-xs uppercase"
               >
                 Salvar Grupo de Exercícios
               </button>
@@ -557,7 +572,7 @@ export default function App() {
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col gap-2 flex-1 overflow-y-auto scrollbar-hide">
+                <div className="flex flex-col gap-2 flex-1 overflow-y-auto scrollbar-hide animate-in slide-in-from-right duration-150">
                   <div className="flex justify-between items-center bg-zinc-900/40 p-2 rounded-xl mb-1">
                     <span className="text-[10px] font-black uppercase text-emerald-400 pl-1">Exibindo: {selectedMuscleFilter}</span>
                     <button onClick={() => setSelectedMuscleFilter(null)} className="text-[10px] text-zinc-500 font-bold underline px-2">Voltar</button>
@@ -566,10 +581,13 @@ export default function App() {
                     <button 
                       key={option.id}
                       onClick={() => handleSelectReplacement(option.id)}
-                      className="w-full text-left bg-[#121215] border border-[#1F1F24] p-3.5 rounded-xl flex justify-between items-center"
+                      className="w-full text-left bg-[#121215] border border-[#1F1F24] p-2.5 rounded-xl flex justify-between items-center gap-3"
                     >
-                      <span className="text-xs font-bold text-zinc-200">{option.name}</span>
-                      <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider bg-emerald-950/20 px-2 py-0.5 rounded border border-emerald-500/10">Injetar</span>
+                      <div className="w-10 h-10 min-w-[40px] min-h-[40px] bg-white rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0">
+                        <img src={option.gifUrl || fallbackImg} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = fallbackImg; }} />
+                      </div>
+                      <span className="text-xs font-bold text-zinc-200 flex-1">{option.name}</span>
+                      <span className="text-[10px] text-emerald-400 font-bold uppercase bg-emerald-950/20 px-2 py-0.5 rounded border border-emerald-500/10 flex-shrink-0">Injetar</span>
                     </button>
                   ))}
                 </div>
@@ -578,7 +596,7 @@ export default function App() {
           </div>
         )}
 
-        {/* GAVETA: SUBSTITUIR EXERCÍCIO MASSIFICADO */}
+        {/* GAVETA: SUBSTITUIR EXERCÍCIO */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black/85 z-50 flex flex-col justify-end">
             <div className="flex-1" onClick={() => setIsModalOpen(false)}></div>
@@ -586,18 +604,21 @@ export default function App() {
               <div className="flex justify-between items-center pb-4 border-b border-zinc-900 mb-3">
                 <div>
                   <h3 className="text-sm font-black text-white uppercase tracking-wide">Substituir Exercício</h3>
-                  <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Foco: {activeMuscleId}</p>
+                  <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Grupo Alvo: {activeMuscleId}</p>
                 </div>
-                <button onClick={() => setIsModalOpen(false)} className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800"><X size={14} /></button>
+                <button onClick={() => window.dispatchEvent(new CustomEvent('closeModal')) || setIsModalOpen(false)} className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800"><X size={14} /></button>
               </div>
               <div className="flex-1 overflow-y-auto py-2 flex flex-col gap-2 scrollbar-hide">
                 {finalReplacementOptions.map((option) => (
-                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center hover:border-zinc-700 transition-colors">
-                    <div>
+                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center hover:border-zinc-700 transition-colors gap-3">
+                    <div className="w-11 h-11 min-w-[44px] min-h-[44px] bg-white rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0">
+                      <img src={option.gifUrl || fallbackImg} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = fallbackImg; }} />
+                    </div>
+                    <div className="flex-1">
                       <p className="text-xs font-bold text-zinc-200">{option.name}</p>
                       <p className="text-[9px] text-zinc-500 uppercase font-semibold mt-0.5">{option.equipment}</p>
                     </div>
-                    <span className="text-[10px] text-emerald-400 font-bold">Trocar</span>
+                    <span className="text-[10px] text-emerald-400 font-bold flex-shrink-0">Trocar</span>
                   </button>
                 ))}
               </div>
@@ -615,13 +636,16 @@ export default function App() {
                 <button onClick={() => setIsAddExerciseOpen(false)} className="bg-zinc-900 p-2 rounded-full text-zinc-400 border border-zinc-800"><X size={14} /></button>
               </div>
               <div className="flex-1 overflow-y-auto py-2 flex flex-col gap-2 scrollbar-hide">
-                {baseDataList.map((option) => (
-                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center">
-                    <div>
+                {exercises.map((option) => (
+                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-3 rounded-xl flex justify-between items-center gap-3">
+                    <div className="w-10 h-10 min-w-[40px] min-h-[40px] bg-white rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0">
+                      <img src={option.gifUrl || fallbackImg} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = fallbackImg; }} />
+                    </div>
+                    <div className="flex-1">
                       <p className="text-xs font-bold text-zinc-200">{option.name}</p>
                       <p className="text-[9px] text-zinc-500 uppercase font-semibold mt-0.5">{option.muscleId}</p>
                     </div>
-                    <span className="text-[10px] text-emerald-400 font-bold">Adicionar</span>
+                    <span className="text-[10px] text-emerald-400 font-bold flex-shrink-0">Adicionar</span>
                   </button>
                 ))}
               </div>
@@ -654,14 +678,14 @@ export default function App() {
         {showTimer && <RestTimer initialSeconds={timerDuration} onClose={() => setShowTimer(false)} />}
         <MyPlanDrawer isOpen={isPlanOpen} onClose={() => setIsPlanOpen(false)} />
 
-        {/* 🔄 BOTÃO DINÂMICO NO RODAPÉ */}
+        {/* BOTÃO PLAY/FINISH NO RODAPÉ DO COCKPIT */}
         {activeTab === 'workout' && currentWorkout.length > 0 && (
           <div className="fixed bottom-16 left-0 right-0 z-40 flex justify-center px-4 pb-3 pt-2 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none">
             <div className="w-full max-w-md pointer-events-auto">
               {!isWorkoutStarted ? (
                 <button 
                   onClick={() => setIsWorkoutStarted(true)}
-                  className="w-full bg-emerald-500 text-black font-black text-xs tracking-wider uppercase py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(16,185,129,0.3)] active:scale-[0.99]"
+                  className="w-full bg-emerald-500 text-black font-black text-xs tracking-wider uppercase py-4 rounded-2xl flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(16,185,129,0.3)] active:scale-[0.99]"
                 >
                   <Play size={14} fill="currentColor" /> Iniciar Treino do Dia
                 </button>
@@ -671,7 +695,7 @@ export default function App() {
                     finishWorkout();
                     setIsWorkoutStarted(false);
                   }} 
-                  className="w-full bg-rose-600 text-white font-black text-xs tracking-wider uppercase py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(225,29,72,0.25)] active:scale-[0.99]"
+                  className="w-full bg-rose-600 text-white font-black text-xs tracking-wider uppercase py-4 rounded-2xl flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(225,29,72,0.25)] active:scale-[0.99]"
                 >
                   <CheckSquare size={16} strokeWidth={2.5} /> Finalizar Treino e Registrar Fadiga
                 </button>
@@ -680,22 +704,22 @@ export default function App() {
           </div>
         )}
 
-        {/* BOTTOM NAV */}
+        {/* BOTTOM NAV DE 4 ABAS COESAS */}
         <nav className="fixed bottom-0 left-0 right-0 h-16 bg-[#070709] border-t border-[#16161A] z-40 flex justify-center px-4">
           <div className="w-full max-w-md h-full grid grid-cols-4">
-            <button onClick={() => setActiveTab('workout')} className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'workout' ? 'text-emerald-400' : 'text-zinc-600'}`}>
+            <button onClick={() => setActiveTab('workout')} className={`flex flex-col items-center justify-center gap-1 ${activeTab === 'workout' ? 'text-emerald-400' : 'text-zinc-600'}`}>
               <Dumbbell size={18} />
               <span className="text-[9px] font-black uppercase tracking-wider">Workout</span>
             </button>
-            <button onClick={() => setActiveTab('recovery')} className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'recovery' ? 'text-emerald-400' : 'text-zinc-600'}`}>
+            <button onClick={() => setActiveTab('recovery')} className={`flex flex-col items-center justify-center gap-1 ${activeTab === 'recovery' ? 'text-emerald-400' : 'text-zinc-600'}`}>
               <Activity size={18} />
               <span className="text-[9px] font-black uppercase tracking-wider">Recovery</span>
             </button>
-            <button onClick={() => setActiveTab('log')} className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'log' ? 'text-emerald-400' : 'text-zinc-600'}`}>
+            <button onClick={() => setActiveTab('log')} className={`flex flex-col items-center justify-center gap-1 ${activeTab === 'log' ? 'text-emerald-400' : 'text-zinc-600'}`}>
               <CalendarDays size={18} />
               <span className="text-[9px] font-black uppercase tracking-wider">Log</span>
             </button>
-            <button onClick={() => setActiveTab('body')} className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'body' ? 'text-emerald-400' : 'text-zinc-600'}`}>
+            <button onClick={() => setActiveTab('body')} className={`flex flex-col items-center justify-center gap-1 ${activeTab === 'body' ? 'text-emerald-400' : 'text-zinc-600'}`}>
               <Trophy size={18} />
               <span className="text-[9px] font-black uppercase tracking-wider">Body</span>
             </button>
