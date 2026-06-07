@@ -6,7 +6,6 @@ import RestTimer from './components/RestTimer';
 import ExerciseDetailsModal from './components/ExerciseDetailsModal';
 import MyPlanDrawer from './components/MyPlanDrawer';
 
-// IMPORTAÇÃO DE TODAS AS ABAS COMPONENTIZADAS
 import RecoveryTab from './components/RecoveryTab';
 import LogTab from './components/LogTab';
 import RecordsTab from './components/RecordsTab';
@@ -32,10 +31,8 @@ export default function App() {
     changeLocationSetting 
   } = useApp();
   
-  // ESTADO MESTRE DE NAVEGAÇÃO
   const [activeTab, setActiveTab] = useState<'workout' | 'recovery' | 'log' | 'body'>('workout');
 
-  // CONTROLES DE INTERFACE E GAVETAS
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false); 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -50,10 +47,22 @@ export default function App() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedExerciseDetails, setSelectedExerciseDetails] = useState<{ name: string; equipment: string; muscleId: string } | null>(null);
 
-  // Mapeamento de recuperação mockado para o sumário rápido da aba Workout
-  const muscleRecoverySummary: { [key: string]: number } = {
-    chest: 100, back: 85, shoulders: 100, biceps: 45, abs: 100, quads: 90, hams: 90, glutes: 100, calves: 100
-  };
+  const [musclePercentages, setMusclePercentages] = useState<{ [key: string]: number }>({});
+
+  // Carrega as porcentagens de fadiga reais do D1 para exibir na aba Workout
+  useEffect(() => {
+    async function loadSummaryData() {
+      try {
+        const res = await fetch('/api/muscles-recovery');
+        if (res.ok) setMusclePercentages(await res.json());
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    if (activeTab === 'workout') {
+      loadSummaryData();
+    }
+  }, [activeTab, currentWorkout]);
 
   useEffect(() => {
     if (!loading && currentWorkout.length === 0 && exercises.length > 0) {
@@ -135,14 +144,13 @@ export default function App() {
     return true;
   });
 
-  // Captura os músculos alvos únicos do treino gerado
   const uniqueWorkoutMuscles = Array.from(new Set(currentWorkout.map(e => e.muscleId).filter(m => m !== 'cardio')));
 
   return (
     <div className="min-h-screen bg-black text-zinc-100 flex justify-center items-start antialiased selection:bg-emerald-500/30">
       <div className="w-full max-w-md min-h-screen bg-black flex flex-col gap-6 pt-6 pb-32 px-4 relative">
         
-        {/* CABEÇALHO SUPERIOR */}
+        {/* HEADER */}
         <header className="flex justify-between items-center px-1">
           <div>
             <h1 className="text-2xl font-black text-white tracking-tight">Fit-Gym</h1>
@@ -165,17 +173,17 @@ export default function App() {
           </div>
         </header>
 
-        {/* PROVEDOR DINÂMICO DE CONTEÚDO */}
+        {/* MÁQUINA DE ESTADOS DAS ABAS */}
         <main className="w-full flex-1">
           {activeTab === 'workout' && (
             <div className="flex flex-col gap-5 animate-in fade-in duration-200">
               
-              {/* 1️⃣ NO TOPO: IDENTIFICAÇÃO DO TREINO DO DIA E BOTÃO DE TROCAR */}
+              {/* TREINO DO DIA E MENU FLUTUANTE DE TROCA DE SPLIT */}
               <section className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 shadow-xl relative">
                 <div className="flex justify-between items-center">
                   <div>
                     <span className="text-[9px] font-black tracking-widest text-emerald-400 uppercase bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/10">
-                      Rotina de Hoje
+                      Treino do Dia
                     </span>
                     <h2 className="text-sm font-black text-zinc-100 mt-1.5 uppercase tracking-wide">
                       {userPlan.splitPreference}
@@ -190,10 +198,9 @@ export default function App() {
                       <SlidersHorizontal size={11} /> Trocar
                     </button>
                     
-                    {/* Menu Flutuante de Troca de Divisão */}
                     {showSplitMenu && (
-                      <div className="absolute right-0 mt-2 w-48 bg-[#121215] border border-[#1F1F24] rounded-xl shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                        {['Treino Recomendado', 'Push/Pull/Legs', 'Corpo inteiro', 'Grupos musculares descansados'].map((splitOpt) => (
+                      <div className="absolute right-0 mt-2 w-56 bg-[#121215] border border-[#1F1F24] rounded-xl shadow-2xl z-50 p-1.5">
+                        {['Treino Recomendado', 'Dia de Push (Peito/Ombros)', 'Dia de Pull (Costas/Bíceps)', 'Dia de Legs (Pernas)', 'Corpo inteiro'].map((splitOpt) => (
                           <button
                             key={splitOpt}
                             onClick={() => changeSplitFromTop(splitOpt)}
@@ -208,9 +215,9 @@ export default function App() {
                 </div>
               </section>
 
-              {/* 2️⃣ QUATRO CARDS ESTRATÉGICOS DE CUSTOMIZAÇÃO */}
+              {/* CARDS DE CUSTOMIZAÇÃO RÁPIDA */}
               <section className="grid grid-cols-2 gap-2.5">
-                <div className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
+                <div onClick={() => { if (currentWorkout[0]) openReplacementModal(currentWorkout[0].id, currentWorkout[0].muscleId); }} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-emerald-950/20 border border-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-black transition-all">
                     <Flame size={14} />
                   </div>
@@ -220,7 +227,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
+                <div onClick={() => setIsPlanOpen(true)} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-blue-950/20 border border-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-black transition-all">
                     <PlusCircle size={14} />
                   </div>
@@ -230,31 +237,31 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
+                <div onClick={() => setActiveTab('log')} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-amber-950/20 border border-amber-500/10 flex items-center justify-center text-amber-400 group-hover:bg-amber-500 group-hover:text-black transition-all">
                     <Bookmark size={14} />
                   </div>
                   <div>
                     <h3 className="text-[11px] font-black text-white uppercase tracking-wide">Treinos Salvos</h3>
-                    <p className="text-[9px] text-zinc-500 mt-0.5">Rotinas customizadas</p>
+                    <p className="text-[9px] text-zinc-500 mt-0.5">Rotinas criadas do zero</p>
                   </div>
                 </div>
 
-                <div className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
+                <div onClick={() => generateWorkout()} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-purple-950/20 border border-purple-500/10 flex items-center justify-center text-purple-400 group-hover:bg-purple-500 group-hover:text-black transition-all">
                     <Zap size={14} />
                   </div>
                   <div>
                     <h3 className="text-[11px] font-black text-white uppercase tracking-wide">Sob Demanda</h3>
-                    <p className="text-[9px] text-zinc-500 mt-0.5">Circuitos expressos</p>
+                    <p className="text-[9px] text-zinc-500 mt-0.5">Gerar instantâneo</p>
                   </div>
                 </div>
               </section>
 
-              {/* 3️⃣ SELETOR DE TEMPO DISPONÍVEL */}
+              {/* SELETOR DE TEMPO DISPONÍVEL */}
               <section className="flex flex-col gap-1.5 px-0.5">
                 <label className="text-[9px] font-black tracking-widest text-zinc-500 uppercase flex items-center gap-1">
-                  <Clock size={10} /> Tempo Disponível Hoje
+                  <Clock size={10} /> Quanto tempo tenho disponível
                 </label>
                 <div className="grid grid-cols-5 gap-1.5 bg-[#0A0A0C] border border-[#1A1A1E] p-1 rounded-xl">
                   {[15, 30, 45, 60, 90].map((mins) => (
@@ -263,7 +270,7 @@ export default function App() {
                       onClick={() => changeDurationFromTop(mins)}
                       className={`py-2 rounded-lg text-center text-[10px] font-bold border transition-all ${
                         userPlan.duration === mins 
-                          ? 'bg-[#121215] border-[#1F1F24] text-emerald-400 shadow-md font-black' 
+                          ? 'bg-[#121215] border-[#1F1F24] text-emerald-400 font-black' 
                           : 'bg-transparent border-transparent text-zinc-500'
                       }`}
                     >
@@ -273,10 +280,10 @@ export default function App() {
                 </div>
               </section>
 
-              {/* 4️⃣ SELETOR DE TIPO / OBJETIVO DE TREINO */}
+              {/* SELETOR DE TIPO DE TREINO */}
               <section className="flex flex-col gap-1.5 px-0.5">
                 <label className="text-[9px] font-black tracking-widest text-zinc-500 uppercase flex items-center gap-1">
-                  <Sparkles size={10} /> Sistema e Tipo de Treino
+                  <Sparkles size={10} /> Tipo de Treino
                 </label>
                 <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
                   {[
@@ -285,7 +292,6 @@ export default function App() {
                     'Praticar Powerlifting', 'Praticar levantamento de peso olímpico'
                   ].map((goalOpt) => {
                     const isSelected = userPlan.goal === goalOpt;
-                    const labelClean = goalOpt.replace('Praticar ', '').replace('Melhorar ', '');
                     return (
                       <button
                         key={goalOpt}
@@ -296,32 +302,29 @@ export default function App() {
                             : 'bg-[#0A0A0C] border-[#1A1A1E] text-zinc-500'
                         }`}
                       >
-                        {labelClean}
+                        {goalOpt}
                       </button>
                     );
                   })}
                 </div>
               </section>
 
-              {/* 5️⃣ MÚSCULOS ALVO E SUAS PORCENTAGENS DE DESCANSO */}
+              {/* MÚSCULOS ALVO E PORCENTAGEM DE DESCANSO REAL DO D1 */}
               <section className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 shadow-xl">
                 <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase block mb-3">
-                  Músculos Alvo de Hoje
+                  Músculos Alvo e Descanso
                 </span>
                 <div className="flex flex-col gap-2.5">
                   {uniqueWorkoutMuscles.map((mId) => {
-                    const pct = muscleRecoverySummary[mId] ?? 100;
+                    const pct = musclePercentages[mId] ?? 100;
                     return (
                       <div key={mId} className="flex justify-between items-center text-xs">
                         <span className="font-bold text-zinc-300 capitalize">{mId}</span>
                         <div className="flex items-center gap-3 w-2/3">
                           <div className="flex-1 h-1.5 bg-zinc-900 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full ${pct < 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} 
-                              style={{ width: `${pct}%` }} 
-                            />
+                            <div className={`h-full rounded-full ${pct < 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
                           </div>
-                          <span className={`text-[10px] font-bold w-10 text-right ${pct < 50 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          <span className={`text-[10px] font-bold w-12 text-right ${pct < 50 ? 'text-amber-400' : 'text-emerald-400'}`}>
                             {pct}% OK
                           </span>
                         </div>
@@ -331,7 +334,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* SELETOR DE LOCALIZAÇÃO (MUDADO DE LUGAR) */}
+              {/* SELETOR DE LOCALIZAÇÃO */}
               <section className="flex flex-col gap-1.5 px-0.5">
                 <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase">Ambiente</span>
                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -353,7 +356,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* 6️⃣ EXERCÍCIOS DO DIA */}
+              {/* EXERCÍCIOS DO DIA */}
               <section className="w-full flex flex-col gap-3">
                 <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase px-0.5">
                   Exercícios do Dia

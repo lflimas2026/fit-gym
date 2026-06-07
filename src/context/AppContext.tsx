@@ -66,7 +66,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutLog[]>([]);
   const [currentWorkout, setCurrentWorkout] = useState<WorkoutExercise[]>([]);
-  const [rawDbWorkouts, setRawDbWorkouts] = useState<any[]>([]); // Cache local para histórico detalhado de cargas
+  const [rawDbWorkouts, setRawDbWorkouts] = useState<any[]>([]);
 
   const [userPreferences, setUserPreferences] = useState<{ location: LocationType }>(() => {
     const saved = localStorage.getItem('fitgym_preferences');
@@ -90,7 +90,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     cardioExercises: []
   });
 
-  // Função centralizada para carregar dados do D1
   const loadD1Data = async () => {
     try {
       const resExercises = await fetch('/api/exercises');
@@ -112,7 +111,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const data = await resWorkouts.json();
         setRawDbWorkouts(data);
         
-        // Reconstrói os logs simplificados de fadiga
         const recoveredLogs: WorkoutLog[] = [];
         data.forEach((w: any) => {
           if (w.sets) {
@@ -141,42 +139,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('fitgym_current', JSON.stringify(currentWorkout));
   }, [currentWorkout]);
 
-  useEffect(() => {
-    localStorage.setItem('fitgym_preferences', JSON.stringify(userPreferences));
-  }, [userPreferences]);
-
   const changeLocationSetting = (newLocation: LocationType) => {
     setUserPreferences({ location: newLocation });
   };
 
   const updateUserPlan = async (newPlanFields: Partial<UserPlan>) => {
-    const updated = { ...userPlan, ...newPlanFields };
-    setUserPlan(updated);
-
-    try {
-      await fetch('/api/plan', {
+    setUserPlan(prev => {
+      const updated = { ...prev, ...newPlanFields };
+      // Dispara o salvamento assíncrono em background sem travar a UI
+      fetch('/api/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated)
-      });
-    } catch (e) {
-      console.error("Falha ao sincronizar plano no D1:", e);
-    }
+      }).catch(e => console.error("Falha ao sincronizar plano no D1:", e));
+      return updated;
+    });
   };
 
   const generateWorkout = () => {
     if (exercises.length === 0) return;
 
+    // INTEGRAÇÃO DA FUNCIONALIDADE: MAPEAMENTO DO SPLIT SELECIONADO NO TOPO
     let targetMuscles: string[] = [];
 
-    if (userPlan.splitPreference === 'Push/Pull/Legs') {
-      const dayHash = Date.now() % 3;
-      if (dayHash === 0) targetMuscles = ['chest', 'shoulders'];
-      else if (dayHash === 1) targetMuscles = ['back', 'biceps'];
-      else targetMuscles = ['quads', 'hams', 'glutes', 'calves'];
+    if (userPlan.splitPreference.includes('Push')) {
+      targetMuscles = ['chest', 'shoulders']; // Foco em empurrar
+    } else if (userPlan.splitPreference.includes('Pull')) {
+      targetMuscles = ['back', 'biceps']; // Foco em puxar
+    } else if (userPlan.splitPreference.includes('Legs')) {
+      targetMuscles = ['quads', 'hams', 'glutes', 'calves']; // Foco em membros inferiores
     } else if (userPlan.splitPreference === 'Corpo inteiro') {
       targetMuscles = ['chest', 'back', 'quads', 'abs'];
     } else {
+      // Padrão 'Treino Recomendado' ou 'Grupos musculares descansados': Usa o motor de fadiga pura
       const muscleIds = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
       const sortedMuscles = muscleIds
         .map(id => ({ id, score: calculateRecovery(id, workoutHistory) }))
@@ -195,26 +190,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const seed = userPlan.variability === 'Mais variado' ? 0.85 : (userPlan.variability === 'Mais consistente' ? 0.25 : 0.5);
     const shuffled = [...filteredExercises].sort(() => seed - Math.random());
     
+    // INTEGRADO: CALIBRAÇÃO EXPRESSA DE NÚMERO DE MOVIMENTOS POR TEMPO DISPONÍVEL
     let numExercises = 4;
-    if (userPlan.duration >= 60) numExercises = 6;
-    if (userPlan.duration >= 90) numExercises = 8;
-    if (userPlan.duration <= 30) numExercises = 3;
+    if (userPlan.duration === 15) numExercises = 2;
+    else if (userPlan.duration === 30) numExercises = 3;
+    else if (userPlan.duration === 45) numExercises = 4;
+    else if (userPlan.duration === 60) numExercises = 6;
+    else if (userPlan.duration === 90) numExercises = 8;
 
     const selectedExercises = shuffled.slice(0, numExercises);
 
     const builtWorkout: WorkoutExercise[] = selectedExercises.map(ex => {
-      let targetReps = 10;
-      if (userPlan.experience === 'Iniciante') targetReps = 12;
-      if (userPlan.experience === 'Avançado') targetReps = 8;
-      if (userPlan.goal === 'Ficar mais forte') targetReps = 5;
+      // INTEGRADO: ADAPTAÇÃO DINÂMICA DE REPETIÇÕES BASEADA NO TIPO DE TREINO SELECIONADO
+      let targetReps = 10; // Hipertrofia padrão
+      if (userPlan.goal === 'Ficar mais forte' || userPlan.goal === 'Praticar Powerlifting') {
+        targetReps = 5; // Treino de força pura demanda cargas altas e baixas reps
+      } else if (userPlan.goal === 'Definir' || userPlan.goal === 'Melhorar condicionamento fisico') {
+        targetReps = 15; // Volume maior para queima calórica e resistência
+      } else if (userPlan.experience === 'Iniciante') {
+        targetReps = 12; // Segurança articular
+      }
 
-      // 🧠 ALGORITMO DE PROGRESSÃO DE CARGA AUTOMÁTICA
-      let baseWeight = 10; // Carga inicial padrão de segurança
-      if (userPlan.experience === 'Intermediário') baseWeight = 20;
-      if (userPlan.experience === 'Avançado') baseWeight = 30;
+      let baseWeight = 20;
+      if (userPlan.goal === 'Ficar mais forte') baseWeight = 30;
       if (ex.equipment === 'bodyweight') baseWeight = 0;
 
-      // Procura no histórico detalhado pelo último registro deste exercício específico
+      // Algoritmo de sobrecarga contínua (Progressão)
       let lastExerciseSets: any[] = [];
       const sortedWorkouts = [...rawDbWorkouts].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
@@ -228,15 +229,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Se encontrou o exercício no passado, calcula a progressão adaptativa
       if (lastExerciseSets.length > 0) {
         const lastMaxWeight = Math.max(...lastExerciseSets.map((s: any) => s.weight || 0));
-        
         if (lastMaxWeight > 0) {
-          // Incrementa baseado no objetivo do plano de treino
-          let increment = 2; // Padrão: +2kg (halteres/máquinas comuns)
-          if (userPlan.goal === 'Ficar mais forte') increment = 4; // Mais foco em sobrecarga de peso
-          
+          let increment = 2;
+          if (userPlan.goal === 'Ficar mais forte') increment = 4;
           baseWeight = lastMaxWeight + increment;
         }
       }
@@ -254,7 +251,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
     });
 
-    // Inserção de Cardio Dinâmico
+    // Bloco reativo de Cardio
     if (userPlan.cardioActive && userPlan.cardioPlacement === 'Inicio do treino' && userPlan.cardioExercises.length > 0) {
       const selectedId = userPlan.cardioExercises[0];
       const matchCardio = exercises.find(e => e.id === selectedId) || { name: 'Corrida na Esteira', muscleId: 'cardio' };
@@ -334,7 +331,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setsToSave.push({
             id: 'set_' + Math.random().toString(36).substring(2, 11),
             exerciseId: ex.baseExerciseId,
-            muscleId: ex.muscleId, // Injeta o grupo para facilitar o motor de fadiga
+            muscleId: ex.muscleId,
             weight: set.weight,
             reps: set.reps,
             completed: true
@@ -360,10 +357,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         })
       });
 
-      // Recarrega o cache local unificado do D1 para recalcular a fadiga e as próximas cargas instantaneamente
       await loadD1Data();
       setCurrentWorkout([]);
-      alert("Treino finalizado com sucesso! Cargas e fadiga computadas pela IA.");
+      alert("Treino finalizado com sucesso!");
     } catch (err) {
       console.error(err);
     }
