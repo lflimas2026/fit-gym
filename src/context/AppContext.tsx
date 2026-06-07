@@ -23,7 +23,8 @@ export interface BaseExercise {
   name: string;
   muscleId: string;
   equipment: string;
-  gifUrl?: string;       
+  gifUrl?: string;
+  instructions?: string;       
 }
 
 export interface UserPlan {
