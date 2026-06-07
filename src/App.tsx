@@ -13,7 +13,8 @@ import RecordsTab from './components/RecordsTab';
 
 import { 
   Dumbbell, MapPin, CheckCircle2, Circle, CheckSquare, RefreshCw, X, 
-  History, Info, Trophy, Heart, Activity, CalendarDays 
+  History, Info, Trophy, Activity, CalendarDays, SlidersHorizontal,
+  Flame, PlusCircle, Bookmark, Zap, Clock, Sparkles
 } from 'lucide-react';
 
 export default function App() {
@@ -22,6 +23,8 @@ export default function App() {
     userPreferences, 
     exercises, 
     loading, 
+    userPlan,
+    updateUserPlan,
     generateWorkout, 
     updateSetProgress, 
     finishWorkout, 
@@ -29,12 +32,15 @@ export default function App() {
     changeLocationSetting 
   } = useApp();
   
-  // ESTADO MESTRE DE NAVEGAÇÃO: Controla qual das 4 abas do Fitbod está ativa
+  // ESTADO MESTRE DE NAVEGAÇÃO
   const [activeTab, setActiveTab] = useState<'workout' | 'recovery' | 'log' | 'body'>('workout');
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // CONTROLES DE INTERFACE E GAVETAS
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false); 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showSplitMenu, setShowSplitMenu] = useState(false);
+  
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
   const [activeMuscleId, setActiveMuscleId] = useState<string | null>(null);
   
@@ -43,6 +49,11 @@ export default function App() {
 
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedExerciseDetails, setSelectedExerciseDetails] = useState<{ name: string; equipment: string; muscleId: string } | null>(null);
+
+  // Mapeamento de recuperação mockado para o sumário rápido da aba Workout
+  const muscleRecoverySummary: { [key: string]: number } = {
+    chest: 100, back: 85, shoulders: 100, biceps: 45, abs: 100, quads: 90, hams: 90, glutes: 100, calves: 100
+  };
 
   useEffect(() => {
     if (!loading && currentWorkout.length === 0 && exercises.length > 0) {
@@ -86,9 +97,7 @@ export default function App() {
 
   const handleLocationChange = (type: LocationType) => {
     changeLocationSetting(type);
-    setTimeout(() => {
-      generateWorkout();
-    }, 50);
+    setTimeout(() => { generateWorkout(); }, 50);
   };
 
   const handleSetToggle = (exerciseId: string, setId: string, currentCompleted: boolean, reps: number, weight: number) => {
@@ -103,6 +112,22 @@ export default function App() {
     }
   };
 
+  const changeSplitFromTop = (newSplit: string) => {
+    updateUserPlan({ splitPreference: newSplit });
+    setShowSplitMenu(false);
+    setTimeout(() => { generateWorkout(); }, 50);
+  };
+
+  const changeDurationFromTop = (mins: number) => {
+    updateUserPlan({ duration: mins });
+    setTimeout(() => { generateWorkout(); }, 50);
+  };
+
+  const changeGoalFromTop = (targetGoal: string) => {
+    updateUserPlan({ goal: targetGoal });
+    setTimeout(() => { generateWorkout(); }, 50);
+  };
+
   const replacementOptions = exercises.filter(ex => {
     if (ex.muscleId !== activeMuscleId) return false;
     if (userPreferences.location === 'Apenas Halteres') return ex.equipment === 'dumbbell' || ex.equipment === 'bodyweight';
@@ -110,11 +135,14 @@ export default function App() {
     return true;
   });
 
+  // Captura os músculos alvos únicos do treino gerado
+  const uniqueWorkoutMuscles = Array.from(new Set(currentWorkout.map(e => e.muscleId).filter(m => m !== 'cardio')));
+
   return (
     <div className="min-h-screen bg-black text-zinc-100 flex justify-center items-start antialiased selection:bg-emerald-500/30">
       <div className="w-full max-w-md min-h-screen bg-black flex flex-col gap-6 pt-6 pb-32 px-4 relative">
         
-        {/* CABEÇALHO SUPERIOR FIXO */}
+        {/* CABEÇALHO SUPERIOR */}
         <header className="flex justify-between items-center px-1">
           <div>
             <h1 className="text-2xl font-black text-white tracking-tight">Fit-Gym</h1>
@@ -137,13 +165,175 @@ export default function App() {
           </div>
         </header>
 
-        {/* PROVEDOR DINÂMICO DE CONTEÚDO DAS ABAS */}
+        {/* PROVEDOR DINÂMICO DE CONTEÚDO */}
         <main className="w-full flex-1">
           {activeTab === 'workout' && (
-            <div className="flex flex-col gap-6 animate-in fade-in duration-200">
-              {/* Seletor de Localização */}
-              <section className="flex flex-col gap-2 px-0.5">
-                <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase mb-1">Local do Treino Atual</span>
+            <div className="flex flex-col gap-5 animate-in fade-in duration-200">
+              
+              {/* 1️⃣ NO TOPO: IDENTIFICAÇÃO DO TREINO DO DIA E BOTÃO DE TROCAR */}
+              <section className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 shadow-xl relative">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="text-[9px] font-black tracking-widest text-emerald-400 uppercase bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/10">
+                      Rotina de Hoje
+                    </span>
+                    <h2 className="text-sm font-black text-zinc-100 mt-1.5 uppercase tracking-wide">
+                      {userPlan.splitPreference}
+                    </h2>
+                  </div>
+                  
+                  <div className="relative">
+                    <button 
+                      onClick={() => setShowSplitMenu(!showSplitMenu)}
+                      className="bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-xl text-[11px] font-bold text-zinc-300 flex items-center gap-1 active:scale-95 transition-all"
+                    >
+                      <SlidersHorizontal size={11} /> Trocar
+                    </button>
+                    
+                    {/* Menu Flutuante de Troca de Divisão */}
+                    {showSplitMenu && (
+                      <div className="absolute right-0 mt-2 w-48 bg-[#121215] border border-[#1F1F24] rounded-xl shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                        {['Treino Recomendado', 'Push/Pull/Legs', 'Corpo inteiro', 'Grupos musculares descansados'].map((splitOpt) => (
+                          <button
+                            key={splitOpt}
+                            onClick={() => changeSplitFromTop(splitOpt)}
+                            className="w-full text-left px-3 py-2 text-xs font-bold rounded-lg text-zinc-400 hover:bg-zinc-900 hover:text-white transition-colors"
+                          >
+                            {splitOpt}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              {/* 2️⃣ QUATRO CARDS ESTRATÉGICOS DE CUSTOMIZAÇÃO */}
+              <section className="grid grid-cols-2 gap-2.5">
+                <div className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-950/20 border border-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-black transition-all">
+                    <Flame size={14} />
+                  </div>
+                  <div>
+                    <h3 className="text-[11px] font-black text-white uppercase tracking-wide">Escolher Músculo</h3>
+                    <p className="text-[9px] text-zinc-500 mt-0.5">Focar grupo específico</p>
+                  </div>
+                </div>
+
+                <div className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
+                  <div className="w-7 h-7 rounded-lg bg-blue-950/20 border border-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-black transition-all">
+                    <PlusCircle size={14} />
+                  </div>
+                  <div>
+                    <h3 className="text-[11px] font-black text-white uppercase tracking-wide">Criar do Zero</h3>
+                    <p className="text-[9px] text-zinc-500 mt-0.5">Montar bloco manual</p>
+                  </div>
+                </div>
+
+                <div className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
+                  <div className="w-7 h-7 rounded-lg bg-amber-950/20 border border-amber-500/10 flex items-center justify-center text-amber-400 group-hover:bg-amber-500 group-hover:text-black transition-all">
+                    <Bookmark size={14} />
+                  </div>
+                  <div>
+                    <h3 className="text-[11px] font-black text-white uppercase tracking-wide">Treinos Salvos</h3>
+                    <p className="text-[9px] text-zinc-500 mt-0.5">Rotinas customizadas</p>
+                  </div>
+                </div>
+
+                <div className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
+                  <div className="w-7 h-7 rounded-lg bg-purple-950/20 border border-purple-500/10 flex items-center justify-center text-purple-400 group-hover:bg-purple-500 group-hover:text-black transition-all">
+                    <Zap size={14} />
+                  </div>
+                  <div>
+                    <h3 className="text-[11px] font-black text-white uppercase tracking-wide">Sob Demanda</h3>
+                    <p className="text-[9px] text-zinc-500 mt-0.5">Circuitos expressos</p>
+                  </div>
+                </div>
+              </section>
+
+              {/* 3️⃣ SELETOR DE TEMPO DISPONÍVEL */}
+              <section className="flex flex-col gap-1.5 px-0.5">
+                <label className="text-[9px] font-black tracking-widest text-zinc-500 uppercase flex items-center gap-1">
+                  <Clock size={10} /> Tempo Disponível Hoje
+                </label>
+                <div className="grid grid-cols-5 gap-1.5 bg-[#0A0A0C] border border-[#1A1A1E] p-1 rounded-xl">
+                  {[15, 30, 45, 60, 90].map((mins) => (
+                    <button
+                      key={mins}
+                      onClick={() => changeDurationFromTop(mins)}
+                      className={`py-2 rounded-lg text-center text-[10px] font-bold border transition-all ${
+                        userPlan.duration === mins 
+                          ? 'bg-[#121215] border-[#1F1F24] text-emerald-400 shadow-md font-black' 
+                          : 'bg-transparent border-transparent text-zinc-500'
+                      }`}
+                    >
+                      {mins}m
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {/* 4️⃣ SELETOR DE TIPO / OBJETIVO DE TREINO */}
+              <section className="flex flex-col gap-1.5 px-0.5">
+                <label className="text-[9px] font-black tracking-widest text-zinc-500 uppercase flex items-center gap-1">
+                  <Sparkles size={10} /> Sistema e Tipo de Treino
+                </label>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+                  {[
+                    'Ficar mais forte', 'Ganhar Massa Muscular', 'Definir', 
+                    'Reduzir peso corporal', 'Melhorar condicionamento fisico', 
+                    'Praticar Powerlifting', 'Praticar levantamento de peso olímpico'
+                  ].map((goalOpt) => {
+                    const isSelected = userPlan.goal === goalOpt;
+                    const labelClean = goalOpt.replace('Praticar ', '').replace('Melhorar ', '');
+                    return (
+                      <button
+                        key={goalOpt}
+                        onClick={() => changeGoalFromTop(goalOpt)}
+                        className={`text-[10px] px-3.5 py-2 rounded-xl whitespace-nowrap font-bold transition-all border ${
+                          isSelected 
+                            ? 'bg-emerald-950/20 text-emerald-400 border-emerald-500/30 font-black' 
+                            : 'bg-[#0A0A0C] border-[#1A1A1E] text-zinc-500'
+                        }`}
+                      >
+                        {labelClean}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {/* 5️⃣ MÚSCULOS ALVO E SUAS PORCENTAGENS DE DESCANSO */}
+              <section className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 shadow-xl">
+                <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase block mb-3">
+                  Músculos Alvo de Hoje
+                </span>
+                <div className="flex flex-col gap-2.5">
+                  {uniqueWorkoutMuscles.map((mId) => {
+                    const pct = muscleRecoverySummary[mId] ?? 100;
+                    return (
+                      <div key={mId} className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-zinc-300 capitalize">{mId}</span>
+                        <div className="flex items-center gap-3 w-2/3">
+                          <div className="flex-1 h-1.5 bg-zinc-900 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full ${pct < 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} 
+                              style={{ width: `${pct}%` }} 
+                            />
+                          </div>
+                          <span className={`text-[10px] font-bold w-10 text-right ${pct < 50 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            {pct}% OK
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {/* SELETOR DE LOCALIZAÇÃO (MUDADO DE LUGAR) */}
+              <section className="flex flex-col gap-1.5 px-0.5">
+                <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase">Ambiente</span>
                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                   {(['Academia Completa', 'Apenas Halteres', 'Peso Corporal'] as LocationType[]).map((loc) => {
                     const isSelected = userPreferences.location === loc;
@@ -151,11 +341,11 @@ export default function App() {
                       <button
                         key={loc}
                         onClick={() => handleLocationChange(loc)}
-                        className={`text-[11px] px-4 py-2.5 rounded-full whitespace-nowrap flex items-center gap-1.5 font-bold transition-all border ${
-                          isSelected ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/40' : 'bg-[#0A0A0C] border-[#1A1A1E] text-zinc-400'
+                        className={`text-[10px] px-4 py-2.5 rounded-full whitespace-nowrap flex items-center gap-1.5 font-bold transition-all border ${
+                          isSelected ? 'bg-zinc-900 text-white border-zinc-700' : 'bg-[#0A0A0C] border-[#1A1A1E] text-zinc-500'
                         }`}
                       >
-                        <MapPin size={11} className={isSelected ? 'text-emerald-400' : 'text-zinc-600'} />
+                        <MapPin size={10} />
                         {loc}
                       </button>
                     );
@@ -163,70 +353,51 @@ export default function App() {
                 </div>
               </section>
 
-              {/* Botão de Regeneração */}
-              <section className="w-full bg-[#0A0A0C] rounded-2xl p-4 border border-[#1A1A1E] flex flex-col gap-3 shadow-xl">
-                <div>
-                  <span className="text-[10px] font-bold tracking-widest text-emerald-500 uppercase">Rotina Recomendada</span>
-                  <h2 className="text-base font-bold text-zinc-100 mt-0.5">Sugestão Baseada em Fadiga</h2>
-                </div>
-                <button 
-                  onClick={generateWorkout}
-                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs tracking-wide uppercase py-3.5 rounded-xl transition-all"
-                >
-                  Regenerar com Filtros Atuais
-                </button>
-              </section>
-
-              {/* Listagem de Exercícios Ativos */}
+              {/* 6️⃣ EXERCÍCIOS DO DIA */}
               <section className="w-full flex flex-col gap-3">
-                {currentWorkout.length === 0 ? (
-                  <div className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-8 text-center flex flex-col items-center gap-2">
-                    <span className="text-2xl">🎉</span>
-                    <p className="text-sm font-bold text-zinc-200">Treino Concluído!</p>
-                    <button onClick={generateWorkout} className="text-xs text-emerald-400 font-bold mt-2 underline">Gerar nova rotina</button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    {currentWorkout.map((ex, idx) => (
-                      <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-3">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1 pr-2 cursor-pointer group select-none" onClick={() => openDetailsModal(ex.baseExerciseId, ex.name, ex.muscleId)}>
-                            <h4 className="text-xs font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors flex items-center gap-1">
-                              {idx + 1}. {ex.name}
-                              <Info size={11} className="text-zinc-600 group-hover:text-emerald-500 shrink-0" />
-                            </h4>
-                            <p className="text-[9px] mt-0.5 uppercase tracking-wider font-semibold text-emerald-500">{ex.muscleId}</p>
+                <span className="text-[9px] font-black tracking-widest text-zinc-500 uppercase px-0.5">
+                  Exercícios do Dia
+                </span>
+                
+                {currentWorkout.map((ex, idx) => (
+                  <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 pr-2 cursor-pointer group select-none" onClick={() => openDetailsModal(ex.baseExerciseId, ex.name, ex.muscleId)}>
+                        <h4 className="text-xs font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors flex items-center gap-1">
+                          {idx + 1}. {ex.name}
+                          <Info size={11} className="text-zinc-600 group-hover:text-emerald-500 shrink-0" />
+                        </h4>
+                        <p className="text-[9px] mt-0.5 uppercase tracking-wider font-semibold text-emerald-500">{ex.muscleId}</p>
+                      </div>
+                      <button onClick={() => openReplacementModal(ex.id, ex.muscleId)} className="flex items-center gap-1 bg-[#121215] border border-zinc-800 text-zinc-400 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all active:scale-95">
+                        <RefreshCw size={10} /> Substituir
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-2 mt-1 border-t border-zinc-900 pt-3">
+                      {ex.sets.map((set, setIdx) => (
+                        <div key={set.id} className={`flex justify-between items-center p-2 rounded-xl border transition-all ${set.completed ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-[#121215] border-[#1F1F24]'}`}>
+                          <span className="text-xs font-bold text-zinc-400 w-8 pl-1">S{setIdx + 1}</span>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <input type="number" inputMode="numeric" value={set.weight} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))} className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none" />
+                              <span className="text-[10px] text-zinc-500">kg</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <input type="number" inputMode="numeric" value={set.reps} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, Number(e.target.value), set.weight)} className="w-10 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none" />
+                              <span className="text-[10px] text-zinc-500">reps</span>
+                            </div>
                           </div>
-                          <button onClick={() => openReplacementModal(ex.id, ex.muscleId)} className="flex items-center gap-1 bg-[#121215] border border-zinc-800 text-zinc-400 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all active:scale-95">
-                            <RefreshCw size={10} /> Substituir
+                          <button onClick={() => handleSetToggle(ex.id, set.id, set.completed, set.reps, set.weight)} className={`p-1.5 rounded-lg ${set.completed ? 'text-emerald-400' : 'text-zinc-600'}`}>
+                            {set.completed ? <CheckCircle2 size={19} /> : <Circle size={19} />}
                           </button>
                         </div>
-
-                        <div className="flex flex-col gap-2 mt-1 border-t border-zinc-900 pt-3">
-                          {ex.sets.map((set, setIdx) => (
-                            <div key={set.id} className={`flex justify-between items-center p-2 rounded-xl border transition-all ${set.completed ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-[#121215] border-[#1F1F24]'}`}>
-                              <span className="text-xs font-bold text-zinc-400 w-8 pl-1">S{setIdx + 1}</span>
-                              <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-1.5">
-                                  <input type="number" inputMode="numeric" value={set.weight} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))} className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none focus:border-emerald-500 transition-all" />
-                                  <span className="text-[10px] text-zinc-500">kg</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <input type="number" inputMode="numeric" value={set.reps} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, Number(e.target.value), set.weight)} className="w-10 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none focus:border-emerald-500 transition-all" />
-                                  <span className="text-[10px] text-zinc-500">reps</span>
-                                </div>
-                              </div>
-                              <button onClick={() => handleSetToggle(ex.id, set.id, set.completed, set.reps, set.weight)} className={`p-1.5 rounded-lg transition-all ${set.completed ? 'text-emerald-400' : 'text-zinc-600'}`}>
-                                {set.completed ? <CheckCircle2 size={19} /> : <Circle size={19} />}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                )}
+                ))}
               </section>
+
             </div>
           )}
 
@@ -246,7 +417,7 @@ export default function App() {
               </div>
               <div className="flex-1 overflow-y-auto py-3 flex flex-col gap-2 scrollbar-hide">
                 {replacementOptions.map((option) => (
-                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center transition-all">
+                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center">
                     <div>
                       <p className="text-xs font-bold text-zinc-200">{option.name}</p>
                       <p className="text-[10px] text-zinc-500 mt-0.5 uppercase tracking-wider font-semibold">Equipamento: {option.equipment}</p>
@@ -267,7 +438,7 @@ export default function App() {
         {showTimer && <RestTimer initialSeconds={timerDuration} onClose={() => setShowTimer(false)} />}
         <MyPlanDrawer isOpen={isPlanOpen} onClose={() => setIsPlanOpen(false)} />
 
-        {/* BOTÃO FLUTUANTE DE FINALIZAÇÃO (SÓ APARECE NA ABA DE TREINO SE TIVER SÉRIES) */}
+        {/* BOTÃO FLUTUANTE DE FINALIZAÇÃO */}
         {activeTab === 'workout' && currentWorkout.length > 0 && (
           <div className="fixed bottom-16 left-0 right-0 z-40 flex justify-center px-4 pb-3 pt-2 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none">
             <div className="w-full max-w-md pointer-events-auto">
@@ -278,46 +449,25 @@ export default function App() {
           </div>
         )}
 
-        {/* 📱 BARRA DE NAVEGAÇÃO INFERIOR FIXA ESTILO FITBOD ORIGINAL */}
+        {/* BARRA DE NAVEGAÇÃO INFERIOR FIXA */}
         <nav className="fixed bottom-0 left-0 right-0 h-16 bg-[#070709] border-t border-[#16161A] z-40 flex justify-center px-4">
           <div className="w-full max-w-md h-full grid grid-cols-4">
-            
-            {/* ABA 1: WORKOUT */}
-            <button 
-              onClick={() => setActiveTab('workout')}
-              className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'workout' ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
-            >
-              <Dumbbell size={18} strokeWidth={activeTab === 'workout' ? 2.5 : 2} />
+            <button onClick={() => setActiveTab('workout')} className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'workout' ? 'text-emerald-400' : 'text-zinc-600'}`}>
+              <Dumbbell size={18} />
               <span className="text-[9px] font-black uppercase tracking-wider">Workout</span>
             </button>
-
-            {/* ABA 2: RECOVERY */}
-            <button 
-              onClick={() => setActiveTab('recovery')}
-              className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'recovery' ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
-            >
-              <Activity size={18} strokeWidth={activeTab === 'recovery' ? 2.5 : 2} />
+            <button onClick={() => setActiveTab('recovery')} className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'recovery' ? 'text-emerald-400' : 'text-zinc-600'}`}>
+              <Activity size={18} />
               <span className="text-[9px] font-black uppercase tracking-wider">Recovery</span>
             </button>
-
-            {/* ABA 3: LOG */}
-            <button 
-              onClick={() => setActiveTab('log')}
-              className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'log' ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
-            >
-              <CalendarDays size={18} strokeWidth={activeTab === 'log' ? 2.5 : 2} />
+            <button onClick={() => setActiveTab('log')} className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'log' ? 'text-emerald-400' : 'text-zinc-600'}`}>
+              <CalendarDays size={18} />
               <span className="text-[9px] font-black uppercase tracking-wider">Log</span>
             </button>
-
-            {/* ABA 4: BODY */}
-            <button 
-              onClick={() => setActiveTab('body')}
-              className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'body' ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
-            >
-              <Trophy size={18} strokeWidth={activeTab === 'body' ? 2.5 : 2} />
+            <button onClick={() => setActiveTab('body')} className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'body' ? 'text-emerald-400' : 'text-zinc-600'}`}>
+              <Trophy size={18} />
               <span className="text-[9px] font-black uppercase tracking-wider">Body</span>
             </button>
-
           </div>
         </nav>
 
