@@ -351,12 +351,11 @@ export default function App() {
                         {/* 🖼️ MINIATURA DO MOVIMENTO TOTALMENTE BLINDADA CONTRA COLAPSO DE LAYOUT */}
                         <div className="w-12 h-12 min-w-[48px] min-h-[48px] bg-white rounded-xl overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0 shadow-inner">
                           <img 
-                        src={ex.gifUrl} 
-                        alt={ex.name} 
-                        className="w-full h-full object-cover rounded-lg block" 
-                        loading="lazy"
-                        // Removi o onError para que, se falhar, ele apenas fique vazio e não coloque a imagem dos halteres
-/>
+  src={ex.gifUrl} 
+  alt={ex.name} 
+  className="w-full h-full object-cover rounded-lg block"
+  onLoad={() => console.log("Imagem carregou:", ex.gifUrl)}
+  onError={(e) => console.log("ERRO AO CARREGAR:", ex.gifUrl)}
 />
                         </div>
 
