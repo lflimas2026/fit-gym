@@ -23,9 +23,9 @@ export default function ExerciseDetailsModal({
 
   if (!isOpen) return null;
 
-  // 🧠 CONEXÃO REAL: Varre a base mestre de 150 exercícios e localiza o link do GIF correspondente na mosca!
-  const matchedExercise = exercises.find(ex => ex.name.toLowerCase() === exerciseName.toLowerCase());
-  const currentGifUrl = matchedExercise?.gifUrl || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80';
+  // 🧠 Procura ignorando acentos ou diferenças de caixa alta/baixa
+const matchedExercise = exercises.find(ex => ex.name.trim().toLowerCase() === exerciseName.trim().toLowerCase());
+const currentGifUrl = matchedExercise?.gifUrl || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80';
 
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-end animate-in fade-in duration-200">
