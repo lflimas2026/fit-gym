@@ -2,8 +2,7 @@ import { BaseExercise } from '../context/AppContext';
 
 export const MASTER_EXERCISES_DATABASE: BaseExercise[] = [
   // PEITORAL
-  // Exemplo de como deve ficar uma linha
-{ id: 'ch_1', name: 'Supino Reto com Barra', muscleId: 'chest', equipment: 'barbell', gifUrl: 'https://raw.githubusercontent.com/yuhas/Exercise/master/exercises/Barbell_Bench_Press.gif' },
+  { id: 'ch_1', name: 'Supino Reto com Barra', muscleId: 'chest', equipment: 'barbell', gifUrl: 'https://cdn.jsdelivr.net/gh/yuhas/Exercise/exercises/Barbell_Bench_Press.gif' },
   { id: 'ch_2', name: 'Supino Inclinado com Halteres', muscleId: 'chest', equipment: 'dumbbell', gifUrl: 'https://cdn.jsdelivr.net/gh/yuhas/Exercise/exercises/Incline_Dumbbell_Press.gif' },
   { id: 'ch_3', name: 'Crucifixo Reto com Halteres', muscleId: 'chest', equipment: 'dumbbell', gifUrl: 'https://cdn.jsdelivr.net/gh/yuhas/Exercise/exercises/Dumbbell_Fly.gif' },
   { id: 'ch_4', name: 'Voador / Pec Deck', muscleId: 'chest', equipment: 'machine', gifUrl: 'https://cdn.jsdelivr.net/gh/yuhas/Exercise/exercises/Pec_Deck_Flye.gif' },
