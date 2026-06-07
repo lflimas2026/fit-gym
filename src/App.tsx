@@ -1,13 +1,20 @@
 // src/App.tsx
 import React, { useEffect, useState } from 'react';
 import { useApp, LocationType } from './context/AppContext';
-import MuscleModel from './components/MuscleModel';
 import HistoryDrawer from './components/HistoryDrawer';
 import RestTimer from './components/RestTimer';
 import ExerciseDetailsModal from './components/ExerciseDetailsModal';
+import MyPlanDrawer from './components/MyPlanDrawer';
+
+// IMPORTAÇÃO DE TODAS AS ABAS COMPONENTIZADAS
+import RecoveryTab from './components/RecoveryTab';
+import LogTab from './components/LogTab';
 import RecordsTab from './components/RecordsTab';
-import MyPlanDrawer from './components/MyPlanDrawer'; // Importando a nova gaveta!
-import { Dumbbell, MapPin, CheckCircle2, Circle, CheckSquare, RefreshCw, X, ShieldAlert, History, Info, Trophy } from 'lucide-react';
+
+import { 
+  Dumbbell, MapPin, CheckCircle2, Circle, CheckSquare, RefreshCw, X, 
+  History, Info, Trophy, Heart, Activity, CalendarDays 
+} from 'lucide-react';
 
 export default function App() {
   const { 
@@ -22,11 +29,12 @@ export default function App() {
     changeLocationSetting 
   } = useApp();
   
-  const [activeTab, setActiveTab] = useState<'workout' | 'records'>('workout');
+  // ESTADO MESTRE DE NAVEGAÇÃO: Controla qual das 4 abas do Fitbod está ativa
+  const [activeTab, setActiveTab] = useState<'workout' | 'recovery' | 'log' | 'body'>('workout');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isPlanOpen, setIsPlanOpen] = useState(false); // Estado de controle do Meu Plano
+  const [isPlanOpen, setIsPlanOpen] = useState(false); 
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
   const [activeMuscleId, setActiveMuscleId] = useState<string | null>(null);
   
@@ -106,21 +114,20 @@ export default function App() {
     <div className="min-h-screen bg-black text-zinc-100 flex justify-center items-start antialiased selection:bg-emerald-500/30">
       <div className="w-full max-w-md min-h-screen bg-black flex flex-col gap-6 pt-6 pb-32 px-4 relative">
         
-        {/* CABEÇALHO COM O CLIQUE DO AVATAR REATIVO */}
+        {/* CABEÇALHO SUPERIOR FIXO */}
         <header className="flex justify-between items-center px-1">
           <div>
             <h1 className="text-2xl font-black text-white tracking-tight">Fit-Gym</h1>
-            <p className="text-xs text-zinc-500 font-medium">Seu laboratorio de treino</p>
+            <p className="text-xs text-zinc-500 font-medium">Seu laboratório de treino</p>
           </div>
           
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsHistoryOpen(true)}
-              className="w-9 h-9 rounded-full bg-[#0A0A0C] border border-zinc-800 hover:border-zinc-700 active:scale-95 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-all shadow-md"
+              className="w-9 h-9 rounded-full bg-[#0A0A0C] border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-all shadow-md"
             >
               <History size={16} />
             </button>
-            {/* CORRIGIDO: Agora abre as configurações completas do plano */}
             <div 
               onClick={() => setIsPlanOpen(true)}
               className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold text-emerald-400 cursor-pointer hover:border-emerald-500 transition-all active:scale-95 shadow-md"
@@ -130,131 +137,103 @@ export default function App() {
           </div>
         </header>
 
-        {/* SELETOR DE ABAS */}
-        <nav className="w-full grid grid-cols-2 bg-[#0A0A0C] border border-[#1A1A1E] p-1 rounded-xl">
-          <button
-            onClick={() => setActiveTab('workout')}
-            className={`py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-              activeTab === 'workout' 
-                ? 'bg-[#121215] border border-[#1F1F24] text-white shadow-md' 
-                : 'text-zinc-500 hover:text-zinc-400'
-            }`}
-          >
-            <Dumbbell size={14} />
-            Treino do Dia
-          </button>
-          <button
-            onClick={() => setActiveTab('records')}
-            className={`py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-              activeTab === 'records' 
-                ? 'bg-[#121215] border border-[#1F1F24] text-white shadow-md' 
-                : 'text-zinc-500 hover:text-zinc-400'
-            }`}
-          >
-            <Trophy size={14} />
-            Recordes (1RM)
-          </button>
-        </nav>
-
-        {activeTab === 'records' ? (
-          <section className="w-full animate-in fade-in duration-200">
-            <RecordsTab />
-          </section>
-        ) : (
-          <>
-            {/* SELETOR DE LOCAL */}
-            <section className="flex flex-col gap-2 px-0.5">
-              <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase mb-1">Local do Treino Atual</span>
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {(['Academia Completa', 'Apenas Halteres', 'Peso Corporal'] as LocationType[]).map((loc) => {
-                  const isSelected = userPreferences.location === loc;
-                  return (
-                    <button
-                      key={loc}
-                      onClick={() => handleLocationChange(loc)}
-                      className={`text-[11px] px-4 py-2.5 rounded-full whitespace-nowrap flex items-center gap-1.5 font-bold transition-all border ${
-                        isSelected ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/40' : 'bg-[#0A0A0C] border-[#1A1A1E] text-zinc-400'
-                      }`}
-                    >
-                      <MapPin size={11} className={isSelected ? 'text-emerald-400' : 'text-zinc-600'} />
-                      {loc}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* CARD CENTRAL */}
-            <section className="w-full bg-[#0A0A0C] rounded-2xl p-4 border border-[#1A1A1E] flex flex-col gap-3 shadow-xl">
-              <div>
-                <span className="text-[10px] font-bold tracking-widest text-emerald-500 uppercase">Rotina Recomendada</span>
-                <h2 className="text-base font-bold text-zinc-100 mt-0.5">Sugestão Baseada em Fadiga</h2>
-              </div>
-              <button 
-                onClick={generateWorkout}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-black font-bold text-xs tracking-wide uppercase py-3.5 rounded-xl transition-all"
-              >
-                Regenerar com Filtros Atuais
-              </button>
-            </section>
-
-            {/* GRÁFICO / MODELO MUSCULAR */}
-            <section className="w-full">
-              <MuscleModel onSelectMuscle={(id) => console.log(id)} />
-            </section>
-
-            {/* LISTA DE EXERCÍCIOS */}
-            <section className="w-full flex flex-col gap-3">
-              {currentWorkout.length === 0 ? (
-                <div className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-8 text-center flex flex-col items-center gap-2">
-                  <span className="text-2xl">🎉</span>
-                  <p className="text-sm font-bold text-zinc-200">Treino Concluido!</p>
-                  <button onClick={generateWorkout} className="text-xs text-emerald-400 font-bold mt-2 underline">Gerar nova rotina</button>
+        {/* PROVEDOR DINÂMICO DE CONTEÚDO DAS ABAS */}
+        <main className="w-full flex-1">
+          {activeTab === 'workout' && (
+            <div className="flex flex-col gap-6 animate-in fade-in duration-200">
+              {/* Seletor de Localização */}
+              <section className="flex flex-col gap-2 px-0.5">
+                <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase mb-1">Local do Treino Atual</span>
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  {(['Academia Completa', 'Apenas Halteres', 'Peso Corporal'] as LocationType[]).map((loc) => {
+                    const isSelected = userPreferences.location === loc;
+                    return (
+                      <button
+                        key={loc}
+                        onClick={() => handleLocationChange(loc)}
+                        className={`text-[11px] px-4 py-2.5 rounded-full whitespace-nowrap flex items-center gap-1.5 font-bold transition-all border ${
+                          isSelected ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/40' : 'bg-[#0A0A0C] border-[#1A1A1E] text-zinc-400'
+                        }`}
+                      >
+                        <MapPin size={11} className={isSelected ? 'text-emerald-400' : 'text-zinc-600'} />
+                        {loc}
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {currentWorkout.map((ex, idx) => (
-                    <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-3">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1 pr-2 cursor-pointer group select-none" onClick={() => openDetailsModal(ex.baseExerciseId, ex.name, ex.muscleId)}>
-                          <h4 className="text-xs font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors flex items-center gap-1">
-                            {idx + 1}. {ex.name}
-                            <Info size={11} className="text-zinc-600 group-hover:text-emerald-500 shrink-0" />
-                          </h4>
-                          <p className="text-[9px] text-zinc-500 mt-0.5 uppercase tracking-wider font-semibold text-emerald-500">{ex.muscleId}</p>
-                        </div>
-                        <button onClick={() => openReplacementModal(ex.id, ex.muscleId)} className="flex items-center gap-1 bg-[#121215] border border-zinc-800 text-zinc-400 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all active:scale-95">
-                          <RefreshCw size={10} /> Substituir
-                        </button>
-                      </div>
+              </section>
 
-                      <div className="flex flex-col gap-2 mt-1 border-t border-zinc-900 pt-3">
-                        {ex.sets.map((set, setIdx) => (
-                          <div key={set.id} className={`flex justify-between items-center p-2 rounded-xl border transition-all ${set.completed ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-[#121215] border-[#1F1F24]'}`}>
-                            <span className="text-xs font-bold text-zinc-400 w-8 pl-1">S{setIdx + 1}</span>
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1.5">
-                                <input type="number" inputMode="numeric" value={set.weight} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))} className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none focus:border-emerald-500 transition-all" />
-                                <span className="text-[10px] text-zinc-500">kg</span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <input type="number" inputMode="numeric" value={set.reps} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, Number(e.target.value), set.weight)} className="w-10 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none focus:border-emerald-500 transition-all" />
-                                <span className="text-[10px] text-zinc-500">reps</span>
-                              </div>
-                            </div>
-                            <button onClick={() => handleSetToggle(ex.id, set.id, set.completed, set.reps, set.weight)} className={`p-1.5 rounded-lg transition-all ${set.completed ? 'text-emerald-400' : 'text-zinc-600'}`}>
-                              {set.completed ? <CheckCircle2 size={19} /> : <Circle size={19} />}
-                            </button>
+              {/* Botão de Regeneração */}
+              <section className="w-full bg-[#0A0A0C] rounded-2xl p-4 border border-[#1A1A1E] flex flex-col gap-3 shadow-xl">
+                <div>
+                  <span className="text-[10px] font-bold tracking-widest text-emerald-500 uppercase">Rotina Recomendada</span>
+                  <h2 className="text-base font-bold text-zinc-100 mt-0.5">Sugestão Baseada em Fadiga</h2>
+                </div>
+                <button 
+                  onClick={generateWorkout}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs tracking-wide uppercase py-3.5 rounded-xl transition-all"
+                >
+                  Regenerar com Filtros Atuais
+                </button>
+              </section>
+
+              {/* Listagem de Exercícios Ativos */}
+              <section className="w-full flex flex-col gap-3">
+                {currentWorkout.length === 0 ? (
+                  <div className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-8 text-center flex flex-col items-center gap-2">
+                    <span className="text-2xl">🎉</span>
+                    <p className="text-sm font-bold text-zinc-200">Treino Concluído!</p>
+                    <button onClick={generateWorkout} className="text-xs text-emerald-400 font-bold mt-2 underline">Gerar nova rotina</button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {currentWorkout.map((ex, idx) => (
+                      <div key={ex.id} className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-3">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 pr-2 cursor-pointer group select-none" onClick={() => openDetailsModal(ex.baseExerciseId, ex.name, ex.muscleId)}>
+                            <h4 className="text-xs font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors flex items-center gap-1">
+                              {idx + 1}. {ex.name}
+                              <Info size={11} className="text-zinc-600 group-hover:text-emerald-500 shrink-0" />
+                            </h4>
+                            <p className="text-[9px] mt-0.5 uppercase tracking-wider font-semibold text-emerald-500">{ex.muscleId}</p>
                           </div>
-                        ))}
+                          <button onClick={() => openReplacementModal(ex.id, ex.muscleId)} className="flex items-center gap-1 bg-[#121215] border border-zinc-800 text-zinc-400 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all active:scale-95">
+                            <RefreshCw size={10} /> Substituir
+                          </button>
+                        </div>
+
+                        <div className="flex flex-col gap-2 mt-1 border-t border-zinc-900 pt-3">
+                          {ex.sets.map((set, setIdx) => (
+                            <div key={set.id} className={`flex justify-between items-center p-2 rounded-xl border transition-all ${set.completed ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-[#121215] border-[#1F1F24]'}`}>
+                              <span className="text-xs font-bold text-zinc-400 w-8 pl-1">S{setIdx + 1}</span>
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1.5">
+                                  <input type="number" inputMode="numeric" value={set.weight} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, set.reps, Number(e.target.value))} className="w-12 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none focus:border-emerald-500 transition-all" />
+                                  <span className="text-[10px] text-zinc-500">kg</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <input type="number" inputMode="numeric" value={set.reps} onChange={(e) => updateSetProgress(ex.id, set.id, set.completed, Number(e.target.value), set.weight)} className="w-10 bg-black border border-zinc-800 text-center text-xs font-bold text-zinc-200 py-1.5 rounded-lg focus:outline-none focus:border-emerald-500 transition-all" />
+                                  <span className="text-[10px] text-zinc-500">reps</span>
+                                </div>
+                              </div>
+                              <button onClick={() => handleSetToggle(ex.id, set.id, set.completed, set.reps, set.weight)} className={`p-1.5 rounded-lg transition-all ${set.completed ? 'text-emerald-400' : 'text-zinc-600'}`}>
+                                {set.completed ? <CheckCircle2 size={19} /> : <Circle size={19} />}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </>
-        )}
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'recovery' && <RecoveryTab />}
+          {activeTab === 'log' && <LogTab />}
+          {activeTab === 'body' && <RecordsTab />}
+        </main>
 
         {/* MODAL DE SUBSTITUIÇÃO */}
         {isModalOpen && (
@@ -267,7 +246,7 @@ export default function App() {
               </div>
               <div className="flex-1 overflow-y-auto py-3 flex flex-col gap-2 scrollbar-hide">
                 {replacementOptions.map((option) => (
-                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center transition-all active:scale-[0.99]">
+                  <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center transition-all">
                     <div>
                       <p className="text-xs font-bold text-zinc-200">{option.name}</p>
                       <p className="text-[10px] text-zinc-500 mt-0.5 uppercase tracking-wider font-semibold">Equipamento: {option.equipment}</p>
@@ -280,30 +259,67 @@ export default function App() {
           </div>
         )}
 
-        {/* MODAL HISTÓRICO */}
+        {/* MODAIS TRANSVERSAIS */}
         <HistoryDrawer isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
-
-        {/* MODAL DETALHES TÉCNICOS */}
         {isDetailsOpen && selectedExerciseDetails && (
           <ExerciseDetailsModal isOpen={isDetailsOpen} onClose={() => setIsDetailsOpen(false)} exerciseName={selectedExerciseDetails.name} equipment={selectedExerciseDetails.equipment} muscleId={selectedExerciseDetails.muscleId} />
         )}
-
-        {/* TIMER */}
         {showTimer && <RestTimer initialSeconds={timerDuration} onClose={() => setShowTimer(false)} />}
-
-        {/* GAVETA MEU PLANO (REATIVO) */}
         <MyPlanDrawer isOpen={isPlanOpen} onClose={() => setIsPlanOpen(false)} />
 
-        {/* BOTÃO FLUTUANTE DE FINALIZAÇÃO */}
+        {/* BOTÃO FLUTUANTE DE FINALIZAÇÃO (SÓ APARECE NA ABA DE TREINO SE TIVER SÉRIES) */}
         {activeTab === 'workout' && currentWorkout.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 z-40 flex justify-center px-4 pb-5 pt-2 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none">
+          <div className="fixed bottom-16 left-0 right-0 z-40 flex justify-center px-4 pb-3 pt-2 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none">
             <div className="w-full max-w-md pointer-events-auto">
-              <button onClick={finishWorkout} className="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-black font-black text-xs tracking-wider uppercase py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(16,185,129,0.3)]">
+              <button onClick={finishWorkout} className="w-full bg-emerald-500 text-black font-black text-xs tracking-wider uppercase py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(16,185,129,0.25)]">
                 <CheckSquare size={16} strokeWidth={2.5} /> Finalizar Treino e Registrar Fadiga
               </button>
             </div>
           </div>
         )}
+
+        {/* 📱 BARRA DE NAVEGAÇÃO INFERIOR FIXA ESTILO FITBOD ORIGINAL */}
+        <nav className="fixed bottom-0 left-0 right-0 h-16 bg-[#070709] border-t border-[#16161A] z-40 flex justify-center px-4">
+          <div className="w-full max-w-md h-full grid grid-cols-4">
+            
+            {/* ABA 1: WORKOUT */}
+            <button 
+              onClick={() => setActiveTab('workout')}
+              className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'workout' ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+            >
+              <Dumbbell size={18} strokeWidth={activeTab === 'workout' ? 2.5 : 2} />
+              <span className="text-[9px] font-black uppercase tracking-wider">Workout</span>
+            </button>
+
+            {/* ABA 2: RECOVERY */}
+            <button 
+              onClick={() => setActiveTab('recovery')}
+              className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'recovery' ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+            >
+              <Activity size={18} strokeWidth={activeTab === 'recovery' ? 2.5 : 2} />
+              <span className="text-[9px] font-black uppercase tracking-wider">Recovery</span>
+            </button>
+
+            {/* ABA 3: LOG */}
+            <button 
+              onClick={() => setActiveTab('log')}
+              className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'log' ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+            >
+              <CalendarDays size={18} strokeWidth={activeTab === 'log' ? 2.5 : 2} />
+              <span className="text-[9px] font-black uppercase tracking-wider">Log</span>
+            </button>
+
+            {/* ABA 4: BODY */}
+            <button 
+              onClick={() => setActiveTab('body')}
+              className={`flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'body' ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+            >
+              <Trophy size={18} strokeWidth={activeTab === 'body' ? 2.5 : 2} />
+              <span className="text-[9px] font-black uppercase tracking-wider">Body</span>
+            </button>
+
+          </div>
+        </nav>
 
       </div>
     </div>
