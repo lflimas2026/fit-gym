@@ -1,0 +1,8 @@
+name = "fit-gym"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "fit-gym-db"
+database_id = "a6d4a310-3282-48e1-bdc2-5284a44b300e"
+migrations_dir = "migrations"

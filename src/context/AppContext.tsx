@@ -14,7 +14,7 @@ export interface WorkoutExercise {
   baseExerciseId: string;
   name: string;
   muscleId: string;
-  gifUrl?: string; // 🧠 Injetado para renderizar o GIF dinâmico na aba Workout
+  gifUrl?: string; 
   sets: { id: string; reps: number; weight: number; completed: boolean }[];
 }
 
@@ -67,7 +67,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutLog[]>([]);
   const [currentWorkout, setCurrentWorkout] = useState<WorkoutExercise[]>([]);
-
   const [userPreferences, setUserPreferences] = useState<{ location: LocationType }>({ location: 'Academia Completa' });
 
   const [userPlan, setUserPlan] = useState<UserPlan>({
@@ -114,7 +113,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setWorkoutHistory(recoveredLogs);
       }
     } catch (err) {
-      console.log("Serviço offline. Rodando com cache estável.");
+      console.log("Modo de contingência ativo.");
     }
   };
 
@@ -205,7 +204,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         baseExerciseId: ex.id,
         name: ex.name,
         muscleId: ex.muscleId,
-        gifUrl: ex.gifUrl, // 🧠 AMARRAÇÃO CORRIGIDA: Agora o GIF flui para o treino gerado!
+        gifUrl: ex.gifUrl,
         sets: [
           { id: 's1', reps: targetReps, weight: 20, completed: false },
           { id: 's2', reps: targetReps, weight: 20, completed: false },
@@ -249,7 +248,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             baseExerciseId: findBaseExercise.id,
             name: findBaseExercise.name,
             muscleId: findBaseExercise.muscleId,
-            gifUrl: findBaseExercise.gifUrl, // Mantém o GIF na substituição
+            gifUrl: findBaseExercise.gifUrl,
             sets: [
               { id: 's1', reps: 10, weight: 20, completed: false },
               { id: 's2', reps: 10, weight: 20, completed: false },
@@ -263,7 +262,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           baseExerciseId: findBaseExercise.id,
           name: findBaseExercise.name,
           muscleId: findBaseExercise.muscleId,
-          gifUrl: findBaseExercise.gifUrl, // Mantém o GIF na adição avulsa
+          gifUrl: findBaseExercise.gifUrl,
           sets: [
             { id: 's1', reps: 10, weight: 20, completed: false },
             { id: 's2', reps: 10, weight: 20, completed: false },
