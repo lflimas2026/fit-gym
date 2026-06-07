@@ -1,91 +1,94 @@
 // src/components/MuscleModel.tsx
-import React, { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip } from 'recharts';
-import { calculateRecovery, getFitbodColor } from '../utils/workoutHelpers';
-import { useApp } from '../context/AppContext';
+import React, { useEffect, useState } from 'react';
+import { Shield, Activity } from 'lucide-react';
 
 interface MuscleModelProps {
-  onSelectMuscle: (id: string) => void;
+  onSelectMuscle?: (muscleId: string) => void;
 }
 
 export default function MuscleModel({ onSelectMuscle }: MuscleModelProps) {
-  const { workoutHistory } = useApp();
-  
-  // Lista de mapeamento dos grupos musculares controlados pelo app
-  const staticMuscles = [
-    { id: 'chest',     name: 'Peito (Peitoral)' },
-    { id: 'back',      name: 'Costas (Dorsais)' },
-    { id: 'shoulders', name: 'Ombros (Deltoides)' },
-    { id: 'biceps',    name: 'Braços (Bíceps/Tríceps)' },
-    { id: 'abs',       name: 'Core (Abdômen)' },
-    { id: 'quads',     name: 'Quadríceps (Frente)' },
-    { id: 'hams',      name: 'Posteriores (Atrás)' },
-    { id: 'glutes',    name: 'Glúteos' },
-    { id: 'calves',    name: 'Panturrilhas' },
-  ];
+  const [recoveryData, setRecoveryData] = useState<{ [key: string]: number }>({
+    chest: 100, back: 100, shoulders: 100, biceps: 100, abs: 100, quads: 100, hams: 100, glutes: 100, calves: 100
+  });
+  const [loading, setLoading] = useState(true);
 
-  // Recalcula o percentual e a cor de cada músculo sempre que o histórico mudar
-  const chartData = useMemo(() => {
-    return staticMuscles.map(muscle => {
-      const recoveryPercentage = calculateRecovery(muscle.id, workoutHistory);
-      return {
-        ...muscle,
-        recovery: recoveryPercentage,
-        color: getFitbodColor(recoveryPercentage)
-      };
-    });
-  }, [workoutHistory]);
-
-  const handleBarClick = (state: any) => {
-    if (state && state.activePayload && onSelectMuscle) {
-      onSelectMuscle(state.activePayload[0].payload.id);
+  useEffect(() => {
+    async function loadRecovery() {
+      try {
+        const res = await fetch('/api/muscles-recovery');
+        if (res.ok) {
+          const data = await res.json();
+          setRecoveryData(data);
+        }
+      } catch (e) {
+        console.error("Erro ao carregar dados de fadiga do D1:", e);
+      } finally {
+        setLoading(false);
+      }
     }
+    loadRecovery();
+  }, []);
+
+  const translateMuscle = (id: string) => {
+    const names: { [key: string]: string } = {
+      chest: 'Peito (Peitoral)',
+      back: 'Costas (Dorsais)',
+      shoulders: 'Ombros (Deltoides)',
+      biceps: 'Braços (Bíceps/Tríceps)',
+      abs: 'Core (Abdômen)',
+      quads: 'Quadríceps (Frente)',
+      hams: 'Posteriores (Atrás)',
+      glutes: 'Glúteos',
+      calves: 'Panturrilhas'
+    };
+    return names[id] || id;
   };
 
+  const getBarColor = (percent: number) => {
+    if (percent < 30) return 'bg-rose-500';
+    if (percent < 70) return 'bg-amber-500';
+    return 'bg-emerald-500';
+  };
+
+  if (loading) {
+    return (
+      <div className="py-6 flex flex-col items-center justify-center gap-2">
+        <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider">Calculando desgaste...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full bg-[#0A0A0C] rounded-2xl p-4 border border-[#1A1A1E]">
-      <div className="mb-4 flex justify-between items-center px-1">
-        <span className="text-[11px] font-bold tracking-widest text-zinc-500 uppercase">
-          Recuperação Muscular
+    <div className="w-full bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 flex flex-col gap-4 shadow-xl">
+      <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
+        <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase flex items-center gap-1.5">
+          <Activity size={12} className="text-emerald-400" /> Recuperação Muscular
         </span>
-        <span className="text-[10px] text-zinc-500 italic">
-          Toque na barra para inspecionar
-        </span>
+        <span className="text-[9px] text-zinc-500 italic">Atualizado em tempo real</span>
       </div>
 
-      <div className="w-full h-[290px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 10, left: -15, bottom: 0 }} onClick={handleBarClick}>
-            <YAxis dataKey="name" type="category" tick={{ fill: '#A1A1AA', fontSize: 11 }} axisLine={false} tickLine={false} width={135} />
-            <XAxis type="number" domain={[0, 100]} hide />
-            <Tooltip
-              cursor={{ fill: '#16161A', opacity: 0.4 }}
-              content={({ active, payload }) => {
-                if (active && payload && payload.length) {
-                  const data = payload[0].payload;
-                  return (
-                    <div className="bg-[#121214] border border-[#27272A] px-3 py-1.5 rounded-lg text-[11px] text-zinc-200 shadow-2xl">
-                      Status: <span className="font-bold" style={{ color: data.color }}>{data.recovery}% pronto</span>
-                    </div>
-                  );
-                }
-                return null;
-              }}
-            />
-            <Bar dataKey="recovery" radius={[4, 4, 4, 4]} barSize={8} className="cursor-pointer">
-              {chartData.map((entry) => (
-                <Cell 
-                  key={entry.id} 
-                  fill={entry.color}
-                  style={{
-                    filter: `drop-shadow(0px 0px 3px ${entry.color}22)`,
-                    transition: 'all 0.3s ease'
-                  }}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="flex flex-col gap-3">
+        {Object.entries(recoveryData).map(([muscleId, percent]) => (
+          <div 
+            key={muscleId} 
+            onClick={() => onSelectMuscle?.(muscleId)}
+            className="flex flex-col gap-1 cursor-pointer group select-none"
+          >
+            <div className="flex justify-between items-center text-[11px] font-bold">
+              <span className="text-zinc-400 group-hover:text-white transition-colors">{translateMuscle(muscleId)}</span>
+              <span className={percent < 50 ? 'text-amber-400' : 'text-emerald-400'}>{percent}%</span>
+            </div>
+            
+            {/* Trilho da Barra de Fadiga */}
+            <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-950">
+              <div 
+                className={`h-full rounded-full transition-all duration-500 ${getBarColor(percent)}`}
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
