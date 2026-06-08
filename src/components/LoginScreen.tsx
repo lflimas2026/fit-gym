@@ -30,7 +30,7 @@ export default function LoginScreen() {
             // Substitua pelo seu Client ID real em produção.
             // Para desenvolvimento local, o botão renderiza mas falhará se não houver um ID válido.
             // Por isso, incluímos também o botão de "Demonstração do Google" para testes rápidos.
-            client_id: '109283091283-dummyclientid.apps.googleusercontent.com',
+            client_id: '622572267107-ffkp1907hune6lb0pgllkea1u32jhamk.apps.googleusercontent.com',
             callback: (response: any) => {
               if (response.credential) {
                 setLoading(true);
@@ -246,6 +246,9 @@ export default function LoginScreen() {
         <div className="flex flex-col items-center gap-2">
           {/* Botão Oficial do Google (Renderizado pelo SDK) */}
           <div id="google-btn-container" className="flex justify-center" />
+          <span className="text-[8px] text-zinc-600 text-center max-w-[260px] leading-tight block mb-1">
+            * O botão oficial requer o Client ID do Google Cloud configurado. Use o botão de demonstração abaixo para testar localmente.
+          </span>
           
           {/* Botão de Teste Rápido do Google */}
           <button 
