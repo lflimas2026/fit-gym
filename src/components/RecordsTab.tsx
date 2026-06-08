@@ -10,26 +10,10 @@ interface RecordItem {
   maxReps: number;
 }
 
-export default function RecordsTab() {
-  const [records, setRecords] = useState<RecordItem[]>([]);
-  const [loading, setLoading] = useState(true);
+import { useApp } from '../context/AppContext';
 
-  useEffect(() => {
-    async function fetchRecords() {
-      try {
-        const response = await fetch('/api/records');
-        if (response.ok) {
-          const data = await response.json();
-          setRecords(data);
-        }
-      } catch (err) {
-        console.error("Erro ao buscar recordes:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchRecords();
-  }, []);
+export default function RecordsTab() {
+  const { records, loading } = useApp();
 
   if (loading) {
     return (

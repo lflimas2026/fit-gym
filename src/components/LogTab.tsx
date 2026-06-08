@@ -9,32 +9,17 @@ interface LocalWorkout {
   sets: { id: string; exerciseId: string; reps: number; weight: number }[];
 }
 
+import { useApp } from '../context/AppContext';
+
 export default function LogTab() {
-  const [history, setHistory] = useState<LocalWorkout[]>([]);
-  const [loadingLogs, setLoadingLogs] = useState(true);
+  const { completedWorkouts, loading } = useApp();
 
-  useEffect(() => {
-    async function fetchLogs() {
-      try {
-        const res = await fetch('/api/workouts');
-        if (res.ok) {
-          const data = await res.json();
-          // Garante que os treinos mais recentes apareçam no topo
-          const sorted = data.sort((a: any, b: any) => 
-            new Date(b.date).getTime() - new Date(a.date).getTime()
-          );
-          setHistory(sorted);
-        }
-      } catch (err) {
-        console.error("Erro ao buscar histórico do D1:", err);
-      } finally {
-        setLoadingLogs(false);
-      }
-    }
-    fetchLogs();
-  }, []);
+  // Garante que os treinos mais recentes apareçam no topo
+  const history = [...completedWorkouts].sort((a: any, b: any) => 
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
 
-  if (loadingLogs) {
+  if (loading) {
     return (
       <div className="py-12 flex flex-col justify-center items-center gap-2">
         <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />

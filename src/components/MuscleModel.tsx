@@ -2,6 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import { Shield, Activity } from 'lucide-react';
 
+import { useApp } from '../context/AppContext';
+import { calculateRecovery } from '../utils/workoutHelpers';
+
 interface MuscleModelProps {
   onSelectMuscle?: (muscleId: string) => void;
 }
@@ -11,6 +14,7 @@ export default function MuscleModel({ onSelectMuscle }: MuscleModelProps) {
     chest: 100, back: 100, shoulders: 100, biceps: 100, abs: 100, quads: 100, hams: 100, glutes: 100, calves: 100
   });
   const [loading, setLoading] = useState(true);
+  const { workoutHistory } = useApp();
 
   useEffect(() => {
     async function loadRecovery() {
@@ -19,15 +23,24 @@ export default function MuscleModel({ onSelectMuscle }: MuscleModelProps) {
         if (res.ok) {
           const data = await res.json();
           setRecoveryData(data);
+          setLoading(false);
+          return;
         }
       } catch (e) {
         console.error("Erro ao carregar dados de fadiga do D1:", e);
-      } finally {
-        setLoading(false);
       }
+      
+      // Fallback local usando o histórico reativo do contexto
+      const localData: { [key: string]: number } = {};
+      const musclesList = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];
+      musclesList.forEach(m => {
+        localData[m] = calculateRecovery(m, workoutHistory);
+      });
+      setRecoveryData(localData);
+      setLoading(false);
     }
     loadRecovery();
-  }, []);
+  }, [workoutHistory]);
 
   const translateMuscle = (id: string) => {
     const names: { [key: string]: string } = {

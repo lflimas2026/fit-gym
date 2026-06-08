@@ -5,6 +5,8 @@ import HistoryDrawer from './components/HistoryDrawer';
 import RestTimer from './components/RestTimer';
 import ExerciseDetailsModal from './components/ExerciseDetailsModal';
 import MyPlanDrawer from './components/MyPlanDrawer';
+import SavedWorkoutsDrawer from './components/SavedWorkoutsDrawer';
+import { calculateRecovery } from './utils/workoutHelpers';
 
 import RecoveryTab from './components/RecoveryTab';
 import LogTab from './components/LogTab';
@@ -28,17 +30,41 @@ export default function App() {
     updateSetProgress, 
     finishWorkout, 
     replaceExercise, 
-    changeLocationSetting 
+    changeLocationSetting,
+    workoutHistory,
+    startCustomWorkout
   } = useApp();
   
   const [activeTab, setActiveTab] = useState<'workout' | 'recovery' | 'log' | 'body'>('workout');
   const [isWorkoutStarted, setIsWorkoutStarted] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (isWorkoutStarted) {
+      interval = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      setElapsedSeconds(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isWorkoutStarted]);
+
+  const formatTime = (totalSecs: number) => {
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // CONTROLES DE INTERFACE
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSplitMenu, setShowSplitMenu] = useState(false);
+  const [isSavedWorkoutsOpen, setIsSavedWorkoutsOpen] = useState(false);
   
   // CRIAR TREINO DO ZERO
   const [isCreateFromZeroOpen, setIsCreateFromZeroOpen] = useState(false);
@@ -72,15 +98,25 @@ export default function App() {
     async function loadSummaryData() {
       try {
         const res = await fetch('/api/muscles-recovery');
-        if (res.ok) setMusclePercentages(await res.json());
+        if (res.ok) {
+          setMusclePercentages(await res.json());
+          return;
+        }
       } catch (e) {
         console.error(e);
       }
+
+      // Fallback local: calcula usando o histórico reativo do contexto
+      const localPcts: { [key: string]: number } = {};
+      musclesList.forEach(m => {
+        localPcts[m] = calculateRecovery(m, workoutHistory);
+      });
+      setMusclePercentages(localPcts);
     }
     if (activeTab === 'workout') {
       loadSummaryData();
     }
-  }, [activeTab, currentWorkout]);
+  }, [activeTab, currentWorkout, workoutHistory]);
 
   useEffect(() => {
     if (!loading && currentWorkout.length === 0 && exercises.length > 0) {
@@ -175,6 +211,23 @@ export default function App() {
 
   const handleConfirmSaveWorkoutName = () => {
     if (!customWorkoutName.trim()) return;
+
+    // Salva no localStorage
+    const newSavedWorkout = {
+      id: 'saved_' + Date.now(),
+      name: customWorkoutName,
+      exerciseIds: selectedExerciseIds
+    };
+
+    try {
+      const existingData = localStorage.getItem('fitgym_saved_workouts');
+      const list = existingData ? JSON.parse(existingData) : [];
+      list.push(newSavedWorkout);
+      localStorage.setItem('fitgym_saved_workouts', JSON.stringify(list));
+    } catch (e) {
+      console.error("Erro ao salvar treino no localStorage:", e);
+    }
+
     alert(`Treino "${customWorkoutName}" salvo com sucesso!`);
     setShowNameModal(false);
     setIsCreateFromZeroOpen(false);
@@ -227,6 +280,29 @@ export default function App() {
         <main className="w-full flex-1">
           {activeTab === 'workout' && (
             <div className="flex flex-col gap-5 animate-in fade-in duration-200">
+              
+              {/* BANNER DE TREINO EM ANDAMENTO (TIMER + CALORIAS) */}
+              {isWorkoutStarted && (
+                <section className="bg-[#0D0D11] border border-emerald-500/20 rounded-2xl p-4 flex justify-between items-center shadow-lg shadow-emerald-950/10">
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-zinc-500 tracking-wider">Tempo Decorrido</p>
+                      <p className="text-lg font-black text-white font-mono mt-0.5">{formatTime(elapsedSeconds)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 pr-2">
+                    <Flame size={20} className="text-amber-500 animate-bounce" />
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-zinc-500 tracking-wider">Calorias (aprox.)</p>
+                      <p className="text-lg font-black text-amber-400 font-mono mt-0.5">{Math.round(elapsedSeconds * 0.12)} <span className="text-[10px] font-bold text-zinc-500">kcal</span></p>
+                    </div>
+                  </div>
+                </section>
+              )}
               
               {/* TREINO DO DIA */}
               <section className="bg-[#0A0A0C] border border-[#1A1A1E] rounded-2xl p-4 shadow-xl relative">
@@ -351,12 +427,15 @@ export default function App() {
                         {/* 🖼️ MINIATURA DO MOVIMENTO TOTALMENTE BLINDADA CONTRA COLAPSO DE LAYOUT */}
                         <div className="w-12 h-12 min-w-[48px] min-h-[48px] bg-white rounded-xl overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0 shadow-inner">
                           <img 
-  src={ex.gifUrl} 
-  alt={ex.name} 
-  className="w-full h-full object-cover rounded-lg block"
-  onLoad={() => console.log("Imagem carregou:", ex.gifUrl)}
-  onError={(e) => console.log("ERRO AO CARREGAR:", ex.gifUrl)}
-/>
+                            src={ex.gifUrl || fallbackImg} 
+                            alt={ex.name} 
+                            className="w-full h-full object-cover rounded-lg block"
+                            onLoad={() => console.log("Imagem carregou:", ex.gifUrl)}
+                            onError={(e) => { 
+                              console.log("ERRO AO CARREGAR:", ex.gifUrl); 
+                              (e.target as HTMLImageElement).src = fallbackImg; 
+                            }}
+                          />
                         </div>
 
                         <div className="flex-1 cursor-pointer group" onClick={() => openDetailsModal(ex.baseExerciseId, ex.name, ex.muscleId)}>
@@ -448,7 +527,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div onClick={() => setActiveTab('log')} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
+                <div onClick={() => setIsSavedWorkoutsOpen(true)} className="bg-[#0A0A0C] border border-[#1A1A1E] p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-zinc-800 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-amber-950/20 border border-amber-500/10 flex items-center justify-center text-amber-400 group-hover:bg-amber-500 group-hover:text-black">
                     <Bookmark size={14} />
                   </div>
@@ -678,6 +757,16 @@ export default function App() {
         )}
         {showTimer && <RestTimer initialSeconds={timerDuration} onClose={() => setShowTimer(false)} />}
         <MyPlanDrawer isOpen={isPlanOpen} onClose={() => setIsPlanOpen(false)} />
+        <SavedWorkoutsDrawer 
+          isOpen={isSavedWorkoutsOpen} 
+          onClose={() => setIsSavedWorkoutsOpen(false)} 
+          onStartWorkout={(exerciseIds) => {
+            startCustomWorkout(exerciseIds);
+            setIsWorkoutStarted(true);
+            setActiveTab('workout');
+            setElapsedSeconds(0);
+          }}
+        />
 
         {/* BOTÃO PLAY/FINISH NO RODAPÉ DO COCKPIT */}
         {activeTab === 'workout' && currentWorkout.length > 0 && (

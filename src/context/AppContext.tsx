@@ -58,6 +58,9 @@ interface AppContextType {
   replaceExercise: (currentExerciseId: string, newExerciseBaseId: string) => void;
   changeLocationSetting: (newLocation: LocationType) => void;
   updateUserPlan: (newPlan: Partial<UserPlan>) => Promise<void>;
+  startCustomWorkout: (exerciseIds: string[]) => void;
+  completedWorkouts: any[];
+  records: any[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -86,6 +89,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     cardioExercises: []
   });
 
+  const [completedWorkouts, setCompletedWorkouts] = useState<any[]>([]);
+  const [records, setRecords] = useState<any[]>([]);
+
+  const loadCompletedWorkoutsFromLocalStorage = () => {
+    const localData = localStorage.getItem('fitgym_completed_workouts');
+    if (localData) {
+      try {
+        const data = JSON.parse(localData);
+        setCompletedWorkouts(data);
+        const recoveredLogs: WorkoutLog[] = [];
+        data.forEach((w: any) => {
+          if (w.sets) {
+            w.sets.forEach((s: any) => {
+              if (s.muscleId) recoveredLogs.push({ muscleId: s.muscleId, date: w.date, intensity: 'heavy' });
+            });
+          }
+        });
+        setWorkoutHistory(recoveredLogs);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
   const loadD1Data = async () => {
     try {
       const resPlan = await fetch('/api/plan');
@@ -102,6 +129,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const resWorkouts = await fetch('/api/workouts');
       if (resWorkouts.ok) {
         const data = await resWorkouts.json();
+        setCompletedWorkouts(data);
         const recoveredLogs: WorkoutLog[] = [];
         data.forEach((w: any) => {
           if (w.sets) {
@@ -111,9 +139,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         });
         setWorkoutHistory(recoveredLogs);
+      } else {
+        loadCompletedWorkoutsFromLocalStorage();
       }
     } catch (err) {
       console.log("Modo de contingência ativo.");
+      loadCompletedWorkoutsFromLocalStorage();
     }
   };
 
@@ -134,6 +165,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('fitgym_current', JSON.stringify(currentWorkout));
   }, [currentWorkout]);
+
+  useEffect(() => {
+    const recordsMap: { [key: string]: { exerciseId: string; exerciseName: string; muscleId: string; estimated1RM: number; maxWeight: number; maxReps: number } } = {};
+
+    completedWorkouts.forEach(w => {
+      if (w.sets) {
+        w.sets.forEach((s: any) => {
+          const exercise = MASTER_EXERCISES_DATABASE.find(ex => ex.id === s.exerciseId);
+          if (!exercise) return;
+          
+          const repsVal = Number(s.reps);
+          const weightVal = Number(s.weight);
+          const estimated1RM = weightVal * (1 + repsVal / 30.0);
+          
+          const existing = recordsMap[s.exerciseId];
+          if (!existing || estimated1RM > existing.estimated1RM) {
+            recordsMap[s.exerciseId] = {
+              exerciseId: s.exerciseId,
+              exerciseName: exercise.name,
+              muscleId: exercise.muscleId,
+              estimated1RM: estimated1RM,
+              maxWeight: Math.max(weightVal, existing ? existing.maxWeight : 0),
+              maxReps: Math.max(repsVal, existing ? existing.maxReps : 0)
+            };
+          } else {
+            existing.maxWeight = Math.max(existing.maxWeight, weightVal);
+            existing.maxReps = Math.max(existing.maxReps, repsVal);
+          }
+        });
+      }
+    });
+
+    const calculatedRecords = Object.values(recordsMap).sort((a, b) => b.estimated1RM - a.estimated1RM);
+    setRecords(calculatedRecords);
+  }, [completedWorkouts]);
 
   const changeLocationSetting = (newLocation: LocationType) => {
     setUserPreferences({ location: newLocation });
@@ -300,18 +366,78 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const newWorkout = {
+      id: workoutId,
+      date: workoutDate,
+      location: userPreferences.location,
+      sets: setsToSave
+    };
+
+    // Salva localmente
+    try {
+      const existingLocal = localStorage.getItem('fitgym_completed_workouts');
+      const list = existingLocal ? JSON.parse(existingLocal) : [];
+      list.push(newWorkout);
+      localStorage.setItem('fitgym_completed_workouts', JSON.stringify(list));
+    } catch (e) {
+      console.error("Erro ao salvar localmente:", e);
+    }
+
+    // Tenta enviar para a API/D1
     try {
       await fetch('/api/workouts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: workoutId, date: workoutDate, location: userPreferences.location, sets: setsToSave })
+        body: JSON.stringify(newWorkout)
       });
-      await loadD1Data();
-      setCurrentWorkout([]);
-      alert("Treino finalizado com sucesso!");
     } catch (err) {
-      setCurrentWorkout([]);
+      console.log("Falha ao salvar no banco, persistido localmente.");
     }
+
+    // Atualiza estados reativos locais
+    setCompletedWorkouts(prev => [newWorkout, ...prev]);
+
+    const newLogs: WorkoutLog[] = [];
+    setsToSave.forEach(s => {
+      if (s.muscleId) {
+        newLogs.push({
+          muscleId: s.muscleId,
+          date: workoutDate,
+          intensity: 'heavy'
+        });
+      }
+    });
+    setWorkoutHistory(prev => [...newLogs, ...prev]);
+
+    setCurrentWorkout([]);
+    alert("Treino finalizado com sucesso!");
+  };
+
+  const startCustomWorkout = (exerciseIds: string[]) => {
+    const selectedExercises = exerciseIds
+      .map(id => MASTER_EXERCISES_DATABASE.find(ex => ex.id === id))
+      .filter((ex): ex is BaseExercise => !!ex);
+
+    const builtWorkout: WorkoutExercise[] = selectedExercises.map(ex => {
+      let targetReps = 10; 
+      if (userPlan.goal.includes('forte') || userPlan.goal.includes('Powerlifting')) targetReps = 5; 
+      else if (userPlan.goal.includes('Definir') || userPlan.goal.includes('condicionamento')) targetReps = 15; 
+
+      return {
+        id: ex.id + '_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+        baseExerciseId: ex.id,
+        name: ex.name,
+        muscleId: ex.muscleId,
+        gifUrl: ex.gifUrl,
+        sets: [
+          { id: 's1', reps: targetReps, weight: 20, completed: false },
+          { id: 's2', reps: targetReps, weight: 20, completed: false },
+          { id: 's3', reps: targetReps, weight: 20, completed: false },
+        ]
+      };
+    });
+
+    setCurrentWorkout(builtWorkout);
   };
 
   return (
@@ -327,7 +453,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       finishWorkout,
       replaceExercise,
       changeLocationSetting,
-      updateUserPlan
+      updateUserPlan,
+      startCustomWorkout,
+      completedWorkouts,
+      records
     }}>
       {children}
     </AppContext.Provider>
