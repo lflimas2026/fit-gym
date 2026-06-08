@@ -7,6 +7,8 @@ import ExerciseDetailsModal from './components/ExerciseDetailsModal';
 import MyPlanDrawer from './components/MyPlanDrawer';
 import SavedWorkoutsDrawer from './components/SavedWorkoutsDrawer';
 import { calculateRecovery } from './utils/workoutHelpers';
+import { useAuth } from './context/AuthContext';
+import LoginScreen from './components/LoginScreen';
 
 import RecoveryTab from './components/RecoveryTab';
 import LogTab from './components/LogTab';
@@ -15,10 +17,11 @@ import RecordsTab from './components/RecordsTab';
 import { 
   Dumbbell, MapPin, CheckCircle2, Circle, CheckSquare, RefreshCw, X, 
   History, Info, Trophy, Activity, CalendarDays, SlidersHorizontal,
-  Flame, PlusCircle, Bookmark, Zap, Clock, Sparkles, Plus, Search, Play
+  Flame, PlusCircle, Bookmark, Zap, Clock, Sparkles, Plus, Search, Play, LogOut
 } from 'lucide-react';
 
 export default function App() {
+  const { user, loading: authLoading, logout } = useAuth();
   const { 
     currentWorkout, 
     userPreferences, 
@@ -58,6 +61,7 @@ export default function App() {
     const secs = totalSecs % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
 
   // CONTROLES DE INTERFACE
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -123,6 +127,18 @@ export default function App() {
       generateWorkout();
     }
   }, [loading, exercises]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#060608] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
 
   if (loading) {
     return (
@@ -268,12 +284,28 @@ export default function App() {
             >
               <History size={16} />
             </button>
-            <div 
-              onClick={() => setIsPlanOpen(true)}
-              className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold text-emerald-400 cursor-pointer"
+            <button
+              onClick={() => logout()}
+              title="Sair"
+              className="w-9 h-9 rounded-full bg-[#0A0A0C] border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-rose-400 transition-all shadow-md cursor-pointer"
             >
-              FL
-            </div>
+              <LogOut size={15} />
+            </button>
+            {user.picture ? (
+              <img 
+                src={user.picture} 
+                alt={user.name} 
+                onClick={() => setIsPlanOpen(true)}
+                className="w-9 h-9 rounded-full border border-zinc-800 object-cover cursor-pointer"
+              />
+            ) : (
+              <div 
+                onClick={() => setIsPlanOpen(true)}
+                className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold text-emerald-400 cursor-pointer uppercase"
+              >
+                {user.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
+              </div>
+            )}
           </div>
         </header>
 

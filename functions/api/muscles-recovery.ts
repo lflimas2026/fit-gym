@@ -7,6 +7,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   try {
     const { DB } = context.env;
 
+    const authHeader = context.request.headers.get("Authorization");
+    const userId = authHeader ? authHeader.replace("Bearer ", "") : "default_user";
+
     // 1. Busca todos os sets concluídos cruzando com a data do treino
     const { results } = await DB.prepare(`
       SELECT 
@@ -15,9 +18,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       FROM workout_sets ws
       JOIN exercises e ON ws.exerciseId = e.id
       JOIN workouts w ON ws.workoutId = w.id
-      WHERE ws.completed = 1
+      WHERE ws.completed = 1 AND w.userId = ?
       ORDER BY w.date DESC
-    `).all();
+    `).bind(userId).all();
 
     // Lista de músculos padrão do app
     const muscles = ['chest', 'back', 'shoulders', 'biceps', 'abs', 'quads', 'hams', 'glutes', 'calves'];

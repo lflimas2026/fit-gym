@@ -6,6 +6,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   try {
     const { DB } = context.env;
 
+    const authHeader = context.request.headers.get("Authorization");
+    const userId = authHeader ? authHeader.replace("Bearer ", "") : "default_user";
+
     // Query relacional que cruza as séries concluídas com o nome dos exercícios
     // e calcula o maior valor estimado de 1RM por fórmula matemática
     const query = `
@@ -18,12 +21,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         MAX(s.reps) as maxReps
       FROM workout_sets s
       JOIN exercises e ON s.exerciseId = e.id
-      WHERE s.completed = 1
+      JOIN workouts w ON s.workoutId = w.id
+      WHERE s.completed = 1 AND w.userId = ?
       GROUP BY e.id
       ORDER BY estimated1RM DESC
     `;
 
-    const { results } = await DB.prepare(query).all();
+    const { results } = await DB.prepare(query).bind(userId).all();
 
     return new Response(JSON.stringify(results), {
       headers: {

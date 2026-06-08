@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { calculateRecovery } from '../utils/workoutHelpers';
 import { MASTER_EXERCISES_DATABASE } from '../data/exercisesDatabase';
+import { useAuth } from './AuthContext';
 
 export interface WorkoutLog {
   muscleId: string;
@@ -66,6 +67,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [exercises, setExercises] = useState<BaseExercise[]>(MASTER_EXERCISES_DATABASE);
   const [loading, setLoading] = useState<boolean>(true);
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutLog[]>([]);
@@ -115,7 +117,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadD1Data = async () => {
     try {
-      const resPlan = await fetch('/api/plan');
+      const headers: any = {};
+      if (user?.id) {
+        headers['Authorization'] = `Bearer ${user.id}`;
+      }
+
+      const resPlan = await fetch('/api/plan', { headers });
       if (resPlan.ok) {
         const planData = await resPlan.json();
         if (planData) {
@@ -126,7 +133,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      const resWorkouts = await fetch('/api/workouts');
+      const resWorkouts = await fetch('/api/workouts', { headers });
       if (resWorkouts.ok) {
         const data = await resWorkouts.json();
         setCompletedWorkouts(data);
@@ -160,7 +167,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentWorkout([]);
       }
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     localStorage.setItem('fitgym_current', JSON.stringify(currentWorkout));
@@ -208,9 +215,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateUserPlan = async (newPlanFields: Partial<UserPlan>) => {
     setUserPlan(prev => {
       const updated = { ...prev, ...newPlanFields };
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (user?.id) {
+        headers['Authorization'] = `Bearer ${user.id}`;
+      }
       fetch('/api/plan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(updated)
       }).catch(e => console.error(e));
       return updated;
@@ -385,9 +396,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Tenta enviar para a API/D1
     try {
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (user?.id) {
+        headers['Authorization'] = `Bearer ${user.id}`;
+      }
       await fetch('/api/workouts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(newWorkout)
       });
     } catch (err) {

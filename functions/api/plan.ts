@@ -7,7 +7,10 @@ interface Env {
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   try {
     const { DB } = context.env;
-    const plan = await DB.prepare("SELECT * FROM user_plans WHERE userId = 'default_user'").first();
+    const authHeader = context.request.headers.get("Authorization");
+    const userId = authHeader ? authHeader.replace("Bearer ", "") : "default_user";
+
+    const plan = await DB.prepare("SELECT * FROM user_plans WHERE userId = ?").bind(userId).first();
     return new Response(JSON.stringify(plan), {
       headers: { 
         "Content-Type": "application/json;charset=UTF-8",
@@ -23,6 +26,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const { DB } = context.env;
+    const authHeader = context.request.headers.get("Authorization");
+    const userId = authHeader ? authHeader.replace("Bearer ", "") : "default_user";
+
     const body: any = await context.request.json();
 
     await DB.prepare(`
@@ -30,7 +36,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         userId, goal, workoutDaysText, duration, experience, splitPreference,
         variability, warmupSets, supersetsActive, timedIntervals, intervalPlacement,
         weightUnit, cardioActive, cardioPlacement, cardioExercises
-      ) VALUES ('default_user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(userId) DO UPDATE SET
         goal = excluded.goal,
         workoutDaysText = excluded.workoutDaysText,
@@ -47,7 +53,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         cardioPlacement = excluded.cardioPlacement,
         cardioExercises = excluded.cardioExercises
     `).bind(
-      body.goal, body.workoutDaysText, body.duration, body.experience, body.splitPreference,
+      userId, body.goal, body.workoutDaysText, body.duration, body.experience, body.splitPreference,
       body.variability, body.warmupSets, body.supersetsActive, body.timedIntervals, body.intervalPlacement,
       body.weightUnit, body.cardioActive, body.cardioPlacement, JSON.stringify(body.cardioExercises)
     ).run();
