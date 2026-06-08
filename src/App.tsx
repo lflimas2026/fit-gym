@@ -35,7 +35,9 @@ export default function App() {
     replaceExercise, 
     changeLocationSetting,
     workoutHistory,
-    startCustomWorkout
+    startCustomWorkout,
+    getOrGenerateExerciseImage,
+    getMuscleFallbackImage
   } = useApp();
   
   const [activeTab, setActiveTab] = useState<'workout' | 'recovery' | 'log' | 'body'>('workout');
@@ -459,13 +461,11 @@ export default function App() {
                         {/* 🖼️ MINIATURA DO MOVIMENTO TOTALMENTE BLINDADA CONTRA COLAPSO DE LAYOUT */}
                         <div className="w-12 h-12 min-w-[48px] min-h-[48px] bg-white rounded-xl overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0 shadow-inner">
                           <img 
-                            src={ex.gifUrl || fallbackImg} 
+                            src={getOrGenerateExerciseImage(ex.baseExerciseId, ex.name, ex.muscleId, exercises.find(item => item.id === ex.baseExerciseId)?.equipment || 'machine')} 
                             alt={ex.name} 
                             className="w-full h-full object-cover rounded-lg block"
-                            onLoad={() => console.log("Imagem carregou:", ex.gifUrl)}
                             onError={(e) => { 
-                              console.log("ERRO AO CARREGAR:", ex.gifUrl); 
-                              (e.target as HTMLImageElement).src = fallbackImg; 
+                              (e.target as HTMLImageElement).src = getMuscleFallbackImage(ex.muscleId); 
                             }}
                           />
                         </div>
@@ -631,7 +631,7 @@ export default function App() {
                             }`}
                           >
                             <div className="w-10 h-10 min-w-[40px] min-h-[40px] bg-white rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0">
-                              <img src={ex.gifUrl || fallbackImg} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = fallbackImg; }} />
+                              <img src={getOrGenerateExerciseImage(ex.id, ex.name, ex.muscleId, ex.equipment)} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = getMuscleFallbackImage(ex.muscleId); }} />
                             </div>
                             <span className="text-xs font-bold text-white flex-1">{ex.name}</span>
                             <div className={`w-4 h-4 border rounded flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-emerald-500 border-emerald-500 text-black' : 'border-zinc-700'}`}>
@@ -696,7 +696,7 @@ export default function App() {
                       className="w-full text-left bg-[#121215] border border-[#1F1F24] p-2.5 rounded-xl flex justify-between items-center gap-3"
                     >
                       <div className="w-10 h-10 min-w-[40px] min-h-[40px] bg-white rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0">
-                        <img src={option.gifUrl || fallbackImg} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = fallbackImg; }} />
+                        <img src={getOrGenerateExerciseImage(option.id, option.name, option.muscleId, option.equipment)} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = getMuscleFallbackImage(option.muscleId); }} />
                       </div>
                       <span className="text-xs font-bold text-zinc-200 flex-1">{option.name}</span>
                       <span className="text-[10px] text-emerald-400 font-bold uppercase bg-emerald-950/20 px-2 py-0.5 rounded border border-emerald-500/10 flex-shrink-0">Injetar</span>
@@ -724,7 +724,7 @@ export default function App() {
                 {finalReplacementOptions.map((option) => (
                   <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-4 rounded-xl flex justify-between items-center hover:border-zinc-700 transition-colors gap-3">
                     <div className="w-11 h-11 min-w-[44px] min-h-[44px] bg-white rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0">
-                      <img src={option.gifUrl || fallbackImg} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = fallbackImg; }} />
+                      <img src={getOrGenerateExerciseImage(option.id, option.name, option.muscleId, option.equipment)} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = getMuscleFallbackImage(option.muscleId); }} />
                     </div>
                     <div className="flex-1">
                       <p className="text-xs font-bold text-zinc-200">{option.name}</p>
@@ -751,7 +751,7 @@ export default function App() {
                 {exercises.map((option) => (
                   <button key={option.id} onClick={() => handleSelectReplacement(option.id)} className="w-full text-left bg-[#121215] border border-[#1F1F24] p-3 rounded-xl flex justify-between items-center gap-3">
                     <div className="w-10 h-10 min-w-[40px] min-h-[40px] bg-white rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center p-0.5 flex-shrink-0">
-                      <img src={option.gifUrl || fallbackImg} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = fallbackImg; }} />
+                      <img src={getOrGenerateExerciseImage(option.id, option.name, option.muscleId, option.equipment)} alt="" className="w-full h-full object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).src = getMuscleFallbackImage(option.muscleId); }} />
                     </div>
                     <div className="flex-1">
                       <p className="text-xs font-bold text-zinc-200">{option.name}</p>

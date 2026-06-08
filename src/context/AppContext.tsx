@@ -1,6 +1,6 @@
 // src/context/AppContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { calculateRecovery } from '../utils/workoutHelpers';
+import { calculateRecovery, getExercisePromptAndInstructions, getMuscleFallbackImage } from '../utils/workoutHelpers';
 import { MASTER_EXERCISES_DATABASE } from '../data/exercisesDatabase';
 import { useAuth } from './AuthContext';
 
@@ -62,6 +62,8 @@ interface AppContextType {
   startCustomWorkout: (exerciseIds: string[]) => void;
   completedWorkouts: any[];
   records: any[];
+  getOrGenerateExerciseImage: (id: string, name: string, muscleId: string, equipment: string) => string;
+  getMuscleFallbackImage: (muscleId: string) => string;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -73,6 +75,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutLog[]>([]);
   const [currentWorkout, setCurrentWorkout] = useState<WorkoutExercise[]>([]);
   const [userPreferences, setUserPreferences] = useState<{ location: LocationType }>({ location: 'Academia Completa' });
+
+  // Estado para armazenar imagens de exercícios geradas por IA
+  const [exerciseAiImages, setExerciseAiImages] = useState<{[key: string]: string}>(() => {
+    const saved = localStorage.getItem('fitgym_exercise_ai_images');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const getOrGenerateExerciseImage = (id: string, name: string, muscleId: string, equipment: string) => {
+    if (exerciseAiImages[id]) {
+      return exerciseAiImages[id];
+    }
+
+    const { instructions } = getExercisePromptAndInstructions(name, muscleId, equipment);
+    // Sanitiza strings para evitar quebra na URL do Pollinations AI
+    const cleanInstructions = instructions.replace(/[^\w\s\u00C0-\u00FF]/g, "").trim();
+    const cleanName = name.replace(/[^\w\s\u00C0-\u00FF]/g, "").trim();
+
+    const promptText = `Detailed 3D fitness illustration of athlete performing ${cleanName} targeting ${muscleId} with ${equipment} instruction ${cleanInstructions} neon green highlight target muscle gym background realistic studio lighting`;
+
+    const encodedPrompt = encodeURIComponent(promptText);
+    const generatedUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=500&height=500&nologo=true&model=turbo`;
+
+    setExerciseAiImages(prev => {
+      const updated = { ...prev, [id]: generatedUrl };
+      localStorage.setItem('fitgym_exercise_ai_images', JSON.stringify(updated));
+      return updated;
+    });
+
+    return generatedUrl;
+  };
 
   const [userPlan, setUserPlan] = useState<UserPlan>({
     goal: 'Ganhar Massa Muscular',
@@ -457,7 +489,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      exercises: MASTER_EXERCISES_DATABASE, 
+      exercises, 
       workoutHistory,
       currentWorkout,
       userPreferences,
@@ -471,7 +503,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateUserPlan,
       startCustomWorkout,
       completedWorkouts,
-      records
+      records,
+      getOrGenerateExerciseImage,
+      getMuscleFallbackImage
     }}>
       {children}
     </AppContext.Provider>
