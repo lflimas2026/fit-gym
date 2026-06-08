@@ -30,7 +30,7 @@ export default function LoginScreen() {
             // Substitua pelo seu Client ID real em produção.
             // Para desenvolvimento local, o botão renderiza mas falhará se não houver um ID válido.
             // Por isso, incluímos também o botão de "Demonstração do Google" para testes rápidos.
-            client_id: '622572267107-ffkp1907hune6lb0pgllkea1u32jhamk.apps.googleusercontent.com',
+            client_id: '614826771388-5kcgo4enqfc2tvkf1n1i5v59p4p00v7j.apps.googleusercontent.com',
             callback: (response: any) => {
               if (response.credential) {
                 setLoading(true);
